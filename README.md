@@ -2,6 +2,8 @@
 
 A robust Chrome extension that scrapes webpage content and converts it to Markdown format for data analysis.
 
+NOTE: use at your own risk.
+
 ## Features
 
 - **Single Page Scraping**: Extract content from the current webpage
