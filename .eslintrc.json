@@ -1,0 +1,52 @@
+{
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "webextensions": true,
+    "jest": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:prettier/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prefer-const": "error",
+    "no-var": "error",
+    "arrow-body-style": ["error", "as-needed"],
+    "prefer-arrow-callback": "error",
+    "object-shorthand": "error",
+    "prefer-template": "error",
+    "no-param-reassign": "error",
+    "consistent-return": "error",
+    "no-shadow": "error",
+    "eqeqeq": ["error", "always"],
+    "curly": ["error", "all"]
+  },
+  "globals": {
+    "chrome": "readonly",
+    "Readability": "readonly"
+  },
+  "overrides": [
+    {
+      "files": ["src/lib/readability.js"],
+      "parserOptions": {
+        "ecmaVersion": 2022
+      },
+      "rules": {
+        "no-param-reassign": "off",
+        "eqeqeq": "off",
+        "no-useless-escape": "off",
+        "no-var": "off",
+        "prefer-const": "off",
+        "no-constant-condition": "off"
+      },
+      "reportUnusedDisableDirectives": false
+    }
+  ]
+}

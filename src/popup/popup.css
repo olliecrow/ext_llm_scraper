@@ -1,0 +1,71 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 10px;
+  width: 300px;
+}
+
+label {
+  display: block;
+  margin: 5px 0;
+}
+
+button {
+  margin-top: 10px;
+  padding: 5px 10px;
+  cursor: pointer;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+button:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+#status {
+  margin-top: 10px;
+  font-style: italic;
+  color: #666;
+}
+
+#progress {
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+#debugLog {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #555;
+  white-space: pre-wrap;
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #aaa;
+  padding: 5px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+h2 {
+  font-size: 18px;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+input[type="number"] {
+  width: 60px;
+  padding: 3px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+input[type="checkbox"] {
+  margin-right: 5px;
+}
