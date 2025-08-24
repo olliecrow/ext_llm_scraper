@@ -52,26 +52,6 @@ NOTE: use at your own risk.
 5. Monitor progress in the popup
 6. Output will be downloaded/copied when complete
 
-## Development
-
-### Project Structure
-
-```
-src/
-├── background/     # Service worker and core logic
-├── content/        # Content script for page extraction
-├── popup/          # Extension popup UI
-├── lib/            # Third-party libraries (Readability.js)
-└── shared/         # Shared utilities and configuration
-```
-
-### Scripts
-
-- `npm test` - Run unit tests
-- `npm run build` - Build extension to dist/
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
-
 ## Output Format
 
 The extension generates a Markdown file with:
