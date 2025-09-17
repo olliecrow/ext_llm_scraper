@@ -54,11 +54,9 @@ async function checkExtensionReload() {
 // Set default values (no saved preferences)
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('crawlMode').checked = true;
-  document.getElementById('maxPages').value = 1000;
-  document.getElementById('concurrency').value = 10;
+document.getElementById('maxPages').value = 1000;
+document.getElementById('concurrency').value = 5;
   document.getElementById('delay').value = 0;
-  document.getElementById('copyToClipboard').checked = false;
-  document.getElementById('downloadFile').checked = true;
   
   // Check if extension was reloaded
   checkExtensionReload();
@@ -103,14 +101,12 @@ document.getElementById('startButton').addEventListener('click', async () => {
     const tabId = tabs[0].id;
     const settings = {
       crawlMode: document.getElementById('crawlMode').checked,
-      maxPages: parseInt(document.getElementById('maxPages').value) || 600,
+      maxPages: parseInt(document.getElementById('maxPages').value) || 1000,
       concurrency: parseInt(document.getElementById('concurrency').value) || 5,
       delay: parseInt(document.getElementById('delay').value) || 0,
-      copyToClipboard: document.getElementById('copyToClipboard').checked,
-      downloadFile: document.getElementById('downloadFile').checked,
     };
     // Enforce caps
-    settings.maxPages = Math.min(settings.maxPages, 600);
+    settings.maxPages = Math.min(settings.maxPages, 1000);
     settings.concurrency = Math.min(settings.concurrency, 10);
     settings.delay = Math.max(settings.delay, 0);
 
@@ -205,17 +201,6 @@ if (port && port.onMessage) {
     if (msg.done) {
       document.getElementById('startButton').disabled = false;
       document.getElementById('stopButton').disabled = true;
-      if (msg.copyToClipboard) {
-        // Try to copy to clipboard
-        navigator.clipboard
-          .writeText(msg.content)
-          .then(() => {
-            addDebugLog('Copied final output to clipboard.');
-          })
-          .catch((err) => {
-            addDebugLog(`Clipboard copy failed: ${err.message}`);
-          });
-      }
     }
   });
 } else {

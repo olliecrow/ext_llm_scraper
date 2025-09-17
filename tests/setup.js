@@ -12,7 +12,12 @@ global.chrome = {
     onStartup: {
       addListener: jest.fn(),
     },
-    sendMessage: jest.fn(),
+    sendMessage: jest.fn((message, callback) => {
+      if (typeof callback === 'function') {
+        callback({ ok: true, echo: message });
+      }
+      return undefined;
+    }),
     connect: jest.fn(() => ({
       postMessage: jest.fn(),
       onMessage: {
@@ -28,7 +33,14 @@ global.chrome = {
   tabs: {
     create: jest.fn(() => Promise.resolve({ id: 1, url: 'https://example.com' })),
     remove: jest.fn(() => Promise.resolve()),
-    get: jest.fn(() => Promise.resolve({ id: 1, status: 'complete', url: 'https://example.com' })),
+    get: jest.fn((tabId, callback) => {
+      const tab = { id: tabId, status: 'complete', url: 'https://example.com' };
+      if (typeof callback === 'function') {
+        callback(tab);
+        return undefined;
+      }
+      return Promise.resolve(tab);
+    }),
     query: jest.fn(() => Promise.resolve([{ id: 1, active: true, url: 'https://example.com' }])),
     onUpdated: {
       addListener: jest.fn(),
@@ -40,7 +52,16 @@ global.chrome = {
     },
   },
   scripting: {
-    executeScript: jest.fn(() => Promise.resolve([{ result: true }])),
+    executeScript: jest.fn(() => Promise.resolve([
+      {
+        result: {
+          url: 'https://example.com',
+          title: 'Example',
+          content: 'Example content',
+          links: [],
+        },
+      },
+    ])),
   },
   storage: {
     local: {
