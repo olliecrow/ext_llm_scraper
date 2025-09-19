@@ -16,7 +16,7 @@ describe('TaskState', () => {
       delay: -10,
     });
 
-    expect(task.settings.maxPages).toBe(1000);
+    expect(task.settings.maxPages).toBe(2000);
     expect(task.settings.concurrency).toBe(10);
     expect(task.settings.delay).toBe(0);
   });
