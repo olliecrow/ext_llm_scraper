@@ -6,7 +6,7 @@ A lightweight Chrome extension that collects readable content from a site and ex
 - Scrape the current page or crawl same-domain links.
 - Clean Markdown output with a table of contents and per-page sections.
 - Automatically downloads Markdown on completion.
-- Sensible defaults (5 concurrent tabs, 1000 page cap) with configurable limits.
+- Sensible defaults (5 concurrent tabs, 2000 page cap) with configurable limits.
 - Built on Mozilla Readability for consistent extraction.
 
 ## Setup
@@ -21,7 +21,7 @@ The build command creates a `dist/` folder that can be loaded via `chrome://exte
 1. Open the page you want to archive.
 2. Click the extension action button and adjust options if needed:
    - Crawl sub-pages (same domain only)
-   - Maximum pages (1–1000)
+   - Maximum pages (1–2000)
    - Concurrent tabs (1–10)
    - Optional delay between requests
 3. Press **Start**. Progress and debug messages stream in the popup.

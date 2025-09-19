@@ -86,11 +86,15 @@ export class TaskState {
       return false;
     }
 
-    if (!Array.isArray(this.queue) || this.queue.length === 0) {
+    if (this.processed + this.inProgress >= this.settings.maxPages) {
+      if (Array.isArray(this.queue) && this.queue.length > 0) {
+        this.queue = [];
+        this.markChanged();
+      }
       return false;
     }
 
-    if (this.processed + this.inProgress >= this.settings.maxPages) {
+    if (!Array.isArray(this.queue) || this.queue.length === 0) {
       return false;
     }
 

@@ -5,7 +5,7 @@ export const CONFIG = {
     BETWEEN_REQUESTS: 150,
   },
   LIMITS: {
-    MAX_PAGES: 1000,
+    MAX_PAGES: 2000,
     MIN_PAGES: 1,
     MAX_CONCURRENCY: 10,
     MIN_CONCURRENCY: 1,
@@ -13,7 +13,7 @@ export const CONFIG = {
   },
   DEFAULTS: {
     CONCURRENCY: 5,
-    MAX_PAGES: 1000,
+    MAX_PAGES: 2000,
     DELAY_MS: 0,
     CRAWL_MODE: true,
   },
