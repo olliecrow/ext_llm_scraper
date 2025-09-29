@@ -6,7 +6,7 @@ A lightweight Chrome extension that collects readable content from a site and ex
 - Scrape the current page or crawl same-domain links.
 - Clean Markdown output with a table of contents and per-page sections.
 - Automatically downloads Markdown on completion.
-- Sensible defaults (5 concurrent tabs, 2000 page cap) with configurable limits.
+- Sensible defaults (10 concurrent tabs, 2000 page cap) with configurable limits.
 - Built on Mozilla Readability for consistent extraction.
 
 ## Setup
@@ -22,7 +22,7 @@ The build command creates a `dist/` folder that can be loaded via `chrome://exte
 2. Click the extension action button and adjust options if needed:
    - Crawl sub-pages (same domain only)
    - Maximum pages (1–2000)
-   - Concurrent tabs (1–10)
+   - Concurrent tabs (1–15)
    - Optional delay between requests
 3. Press **Start**. Progress and debug messages stream in the popup.
 4. Press **Stop** to cancel the task.
@@ -42,5 +42,5 @@ The generated Markdown contains:
 
 ## Notes
 - Host permissions are limited to pages the user activates through the popup.
-- Default concurrency and page limits are conservative to keep Chrome responsive.
+- Default concurrency is 10 tabs (max 15) and page limits are tuned to keep Chrome responsive.
 - The repository intentionally omits historical builds and debug bundles to keep the public release tidy.

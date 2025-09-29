@@ -7,6 +7,7 @@ describe('TaskState', () => {
     const task = new TaskState(1, START_URL, {});
     expect(task.startingUrl).toBe('https://example.com/posts/welcome');
     expect(task.startingDomain).toBe('example.com');
+    expect(task.settings.concurrency).toBe(10);
   });
 
   test('clamps settings to configured limits', () => {
@@ -17,7 +18,7 @@ describe('TaskState', () => {
     });
 
     expect(task.settings.maxPages).toBe(2000);
-    expect(task.settings.concurrency).toBe(10);
+    expect(task.settings.concurrency).toBe(15);
     expect(task.settings.delay).toBe(0);
   });
 
