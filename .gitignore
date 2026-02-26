@@ -51,6 +51,9 @@ Desktop.ini
 # Chrome extension specific
 *.crx
 *.pem
+*.key
+*.p12
+*.pfx
 key.pem
 
 # Claude Code agent files
