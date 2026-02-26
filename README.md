@@ -64,4 +64,5 @@ The generated Markdown includes.
 ## Documentation map
 
 - `README.md`: human-facing project overview and usage
+- `docs/README.md`: docs index and routing
 - `docs/project-preferences.md`: durable maintenance and verification preferences
