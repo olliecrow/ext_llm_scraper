@@ -60,3 +60,8 @@ The generated Markdown includes.
 - Host permissions are limited to pages you activate through the popup.
 - Default concurrency is 10 tabs, max is 15.
 - The repo omits historical builds and debug bundles to keep the public release tidy.
+
+## Documentation map
+
+- `README.md`: human-facing project overview and usage
+- `docs/project-preferences.md`: durable maintenance and verification preferences
