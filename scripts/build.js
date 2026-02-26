@@ -10,6 +10,16 @@ const rootDir = path.join(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const srcDir = path.join(rootDir, 'src');
 
+function shouldSkipEntry(name) {
+  if (name === '.DS_Store' || name === 'Thumbs.db') {
+    return true;
+  }
+  if (name.startsWith('._')) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Recursively copies files from source to destination
  */
@@ -25,6 +35,9 @@ function copyRecursive(src, dest) {
     // Copy all files in directory
     const files = fs.readdirSync(src);
     for (const file of files) {
+      if (shouldSkipEntry(file)) {
+        continue;
+      }
       copyRecursive(path.join(src, file), path.join(dest, file));
     }
   } else {
