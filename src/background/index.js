@@ -11,11 +11,7 @@ async function processTask(task) {
   const active = new Set();
 
   while (!task.abort) {
-    while (
-      task.canSchedule() &&
-      active.size < task.settings.concurrency &&
-      !task.abort
-    ) {
+    while (task.canSchedule() && active.size < task.settings.concurrency && !task.abort) {
       const nextUrl = task.getNextUrl();
       if (!nextUrl) {
         break;

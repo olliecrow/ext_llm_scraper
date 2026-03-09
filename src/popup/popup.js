@@ -8,16 +8,16 @@ function resetPopupState() {
   if (debugLog) {
     debugLog.textContent = '';
   }
-  
+
   // Reset status
   document.getElementById('status').textContent = 'Ready';
   document.getElementById('processed').textContent = '0';
   document.getElementById('total').textContent = '0';
-  
+
   // Reset buttons
   document.getElementById('startButton').disabled = false;
   document.getElementById('stopButton').disabled = true;
-  
+
   // Add reset notification
   addDebugLog('🔄 Extension reloaded - popup state reset');
 }
@@ -33,11 +33,13 @@ async function checkExtensionReload() {
     }
   } catch (error) {
     // If we get an error, the extension was likely reloaded
-    if (error.message.includes('Extension context invalidated') || 
-        error.message.includes('message port closed')) {
+    if (
+      error.message.includes('Extension context invalidated') ||
+      error.message.includes('message port closed')
+    ) {
       addDebugLog('🔄 Extension was reloaded, resetting popup state');
       resetPopupState();
-      
+
       // Wait a moment for background script to initialize, then try again
       setTimeout(async () => {
         try {
@@ -57,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('maxPages').value = 2000;
   document.getElementById('concurrency').value = 10;
   document.getElementById('delay').value = 0;
-  
+
   // Check if extension was reloaded
   checkExtensionReload();
 });
@@ -97,7 +99,7 @@ document.getElementById('startButton').addEventListener('click', async () => {
       addDebugLog('Error: No active tab found');
       return;
     }
-    
+
     const tabId = tabs[0].id;
     const settings = {
       crawlMode: document.getElementById('crawlMode').checked,
@@ -116,7 +118,7 @@ document.getElementById('startButton').addEventListener('click', async () => {
       startingUrl: tabs[0].url,
       settings,
     });
-    
+
     if (response === null) {
       addDebugLog('Warning: Background script unavailable - task may not start properly');
       addDebugLog('Try reloading the extension or refreshing the page');
@@ -138,10 +140,10 @@ document.getElementById('stopButton').addEventListener('click', async () => {
       addDebugLog('Error: No active tab found');
       return;
     }
-    
+
     const tabId = tabs[0].id;
     const response = await safeRuntime.sendMessage({ action: 'stop', tabId });
-    
+
     if (response === null) {
       addDebugLog('Warning: Background script unavailable - stop command may not be received');
       addDebugLog('Try reloading the extension if task continues running');
@@ -162,14 +164,14 @@ document.getElementById('stopButton').addEventListener('click', async () => {
       addDebugLog('Background connection not available - real-time updates disabled');
       return;
     }
-    
+
     // Verify port has required methods
     if (!port.postMessage || typeof port.postMessage !== 'function') {
       addDebugLog('Port connection invalid - postMessage not available');
       console.warn('Invalid port object:', port);
       return;
     }
-    
+
     const tabs = await safeTabs.query({ active: true, currentWindow: true });
     if (tabs && tabs.length > 0) {
       const tabId = tabs[0].id;
@@ -218,8 +220,12 @@ function addDebugLog(text) {
     // Fallback to console if DOM not ready
     console.log('[DEBUG]', text);
     // Queue message for when DOM is ready
-    document.addEventListener('DOMContentLoaded', () => {
-      addDebugLog(text);
-    }, { once: true });
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        addDebugLog(text);
+      },
+      { once: true }
+    );
   }
 }

@@ -1,9 +1,5 @@
 import { CONFIG } from '../shared/config.js';
-import {
-  delay,
-  isValidUrl,
-  hasExcludedExtension,
-} from '../shared/utils.js';
+import { delay, isValidUrl, hasExcludedExtension } from '../shared/utils.js';
 import { SafeChromeAPI } from '../shared/safeChromeAPI.js';
 
 export class PageScraper {
@@ -58,9 +54,12 @@ export class PageScraper {
       this.enqueueDiscoveredLinks(task, content.links);
 
       this.taskManager.sendStatus(task.taskId, {
-        status: `Scraped ${task.processed + 1} page(s)` ,
+        status: `Scraped ${task.processed + 1} page(s)`,
         processed: task.processed + 1,
-        total: Math.min(task.settings.maxPages, task.processed + task.queue.length + task.inProgress),
+        total: Math.min(
+          task.settings.maxPages,
+          task.processed + task.queue.length + task.inProgress
+        ),
         debug: `Captured ${url}`,
       });
 
@@ -116,7 +115,7 @@ export class PageScraper {
 
     if (added > 0) {
       this.taskManager.sendStatus(task.taskId, {
-        debug: `Queued ${added} additional page(s)`
+        debug: `Queued ${added} additional page(s)`,
       });
     }
   }
@@ -211,9 +210,7 @@ export class PageScraper {
         }
 
         const links = Array.from(document.querySelectorAll('a[href]'));
-        response.links = links
-          .map((anchor) => anchor.href)
-          .filter(Boolean);
+        response.links = links.map((anchor) => anchor.href).filter(Boolean);
 
         return response;
       },

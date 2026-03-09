@@ -38,12 +38,12 @@ export class SafeChromeAPI {
       if (error.message.includes('QUOTA')) {
         return this.handleQuotaExceeded(operation, data);
       }
-      
+
       if (error.message.includes('permissions')) {
         console.warn('Storage permissions missing, using memory fallback');
         return this.memoryFallback(operation, data);
       }
-      
+
       // Re-throw unexpected errors
       throw error;
     }
@@ -87,12 +87,12 @@ export class SafeChromeAPI {
         console.debug(`Tab ${options} already closed or invalid`);
         return null; // Tab already closed, not an error
       }
-      
+
       if (error.message.includes('permission')) {
         console.warn(`Tab ${operation} permission denied:`, error.message);
         return null; // Graceful degradation
       }
-      
+
       // Re-throw other errors
       throw error;
     }
@@ -125,7 +125,7 @@ export class SafeChromeAPI {
         console.warn('Script injection blocked by page permissions');
         return null; // Graceful failure
       }
-      
+
       throw error;
     }
   }
@@ -153,11 +153,14 @@ export class SafeChromeAPI {
       }
     } catch (error) {
       // Handle download restrictions
-      if (error.message.includes('Download interrupted') || error.message.includes('USER_CANCELED')) {
+      if (
+        error.message.includes('Download interrupted') ||
+        error.message.includes('USER_CANCELED')
+      ) {
         console.debug('Download was interrupted or canceled');
         return null; // Not a critical error
       }
-      
+
       throw error;
     }
   }
@@ -194,7 +197,7 @@ export class SafeChromeAPI {
         console.warn('Runtime disconnected, attempting to reconnect');
         return null; // Allow caller to handle reconnection
       }
-      
+
       throw error;
     }
   }
@@ -211,20 +214,28 @@ export class SafeChromeAPI {
       chrome.runtime.sendMessage(message, async (response) => {
         if (chrome.runtime.lastError) {
           const errorMessage = chrome.runtime.lastError.message;
-          console.warn(`Runtime sendMessage error (attempt ${attempt}/${maxRetries}):`, errorMessage);
-          
+          console.warn(
+            `Runtime sendMessage error (attempt ${attempt}/${maxRetries}):`,
+            errorMessage
+          );
+
           // Handle specific service worker inactivity errors
-          if (errorMessage.includes('message port closed') || 
-              errorMessage.includes('receiving end does not exist')) {
-            
+          if (
+            errorMessage.includes('message port closed') ||
+            errorMessage.includes('receiving end does not exist')
+          ) {
             if (attempt < maxRetries) {
               // Calculate exponential backoff delay (100ms, 200ms, 400ms)
               const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
               console.debug(`Service worker inactive, retrying in ${delay}ms...`);
-              
+
               setTimeout(async () => {
                 try {
-                  const retryResult = await this.sendMessageWithRetry(message, maxRetries, attempt + 1);
+                  const retryResult = await this.sendMessageWithRetry(
+                    message,
+                    maxRetries,
+                    attempt + 1
+                  );
                   resolve(retryResult);
                 } catch (retryError) {
                   reject(retryError);
@@ -238,14 +249,14 @@ export class SafeChromeAPI {
               return;
             }
           }
-          
+
           // Handle other runtime errors
           if (errorMessage.includes('Extension context invalidated')) {
             console.warn('Extension reloaded, operation cancelled');
             resolve(null);
             return;
           }
-          
+
           // For other errors, reject after max retries
           if (attempt >= maxRetries) {
             reject(new Error(errorMessage));
@@ -253,7 +264,11 @@ export class SafeChromeAPI {
             // Retry other errors once
             setTimeout(async () => {
               try {
-                const retryResult = await this.sendMessageWithRetry(message, maxRetries, attempt + 1);
+                const retryResult = await this.sendMessageWithRetry(
+                  message,
+                  maxRetries,
+                  attempt + 1
+                );
                 resolve(retryResult);
               } catch (retryError) {
                 reject(retryError);
@@ -284,7 +299,7 @@ export class SafeChromeAPI {
       try {
         await this.storage('set', { quota_test: testData });
         await this.storage('remove', 'quota_test');
-        
+
         // If 1KB works, assume 5MB safe minimum (enterprise environments)
         return 5 * 1024 * 1024;
       } catch (e) {
@@ -326,7 +341,7 @@ export class SafeChromeAPI {
         }
         if (Array.isArray(data)) {
           const result = {};
-          data.forEach(key => {
+          data.forEach((key) => {
             result[key] = this._memoryStorage.get(key);
           });
           return Promise.resolve(result);
@@ -339,24 +354,25 @@ export class SafeChromeAPI {
           });
           return Promise.resolve(result);
         }
-        break;
+        return Promise.reject(new Error(`Unsupported get fallback payload: ${typeof data}`));
 
       case 'remove':
         if (typeof data === 'string') {
           this._memoryStorage.delete(data);
         }
         if (Array.isArray(data)) {
-          data.forEach(key => this._memoryStorage.delete(key));
+          data.forEach((key) => this._memoryStorage.delete(key));
         }
         return Promise.resolve();
 
-      case 'getBytesInUse':
+      case 'getBytesInUse': {
         // Estimate memory usage (rough approximation)
         let totalBytes = 0;
         this._memoryStorage.forEach((value, key) => {
-          totalBytes += JSON.stringify({[key]: value}).length * 2; // UTF-16 approximation
+          totalBytes += JSON.stringify({ [key]: value }).length * 2; // UTF-16 approximation
         });
         return Promise.resolve(totalBytes);
+      }
 
       default:
         return Promise.reject(new Error(`Unknown operation: ${operation}`));
@@ -371,24 +387,26 @@ export class SafeChromeAPI {
    */
   static async handleQuotaExceeded(operation, data) {
     console.warn('Storage quota exceeded, attempting recovery');
-    
+
     try {
       // Try to clean up old data first
       const allData = await chrome.storage.local.get(null);
       const keys = Object.keys(allData);
-      
+
       // Remove old task data (keep only most recent)
-      const taskKeys = keys.filter(key => key.startsWith('task_'));
+      const taskKeys = keys.filter((key) => key.startsWith('task_'));
       if (taskKeys.length > 3) {
         const keysToRemove = taskKeys.slice(0, taskKeys.length - 3);
         await chrome.storage.local.remove(keysToRemove);
         console.info(`Cleaned up ${keysToRemove.length} old task entries`);
       }
-      
+
       // Try the original operation again
       if (operation === 'set') {
         return await chrome.storage.local.set(data);
       }
+
+      return this.memoryFallback(operation, data);
     } catch (retryError) {
       console.error('Failed to recover from quota exceeded:', retryError);
       // Fall back to memory storage
@@ -406,7 +424,7 @@ export class SafeChromeAPI {
       tabs: false,
       scripting: false,
       downloads: false,
-      restrictedEnvironment: false
+      restrictedEnvironment: false,
     };
 
     try {
@@ -448,7 +466,7 @@ export class SafeChromeAPI {
     }
 
     // Determine if we're in a restricted environment
-    const restrictedCount = Object.values(capabilities).filter(cap => !cap).length;
+    const restrictedCount = Object.values(capabilities).filter((cap) => !cap).length;
     capabilities.restrictedEnvironment = restrictedCount > 1;
 
     return capabilities;
@@ -460,15 +478,15 @@ export class SafeChromeAPI {
    */
   static async initialize() {
     const capabilities = await this.checkEnvironmentCapabilities();
-    
+
     if (capabilities.restrictedEnvironment) {
       console.warn('Running in restricted Chrome environment. Some features may be limited.');
     }
-    
+
     return {
       initialized: true,
       capabilities,
-      fallbacksActive: capabilities.restrictedEnvironment
+      fallbacksActive: capabilities.restrictedEnvironment,
     };
   }
 }
@@ -484,18 +502,18 @@ export const safeStorage = {
   async set(data) {
     return SafeChromeAPI.storage('set', data);
   },
-  
+
   async get(keys) {
     return SafeChromeAPI.storage('get', keys);
   },
-  
+
   async remove(keys) {
     return SafeChromeAPI.storage('remove', keys);
   },
-  
+
   async getBytesInUse(keys) {
     return SafeChromeAPI.storage('getBytesInUse', keys);
-  }
+  },
 };
 
 /**
@@ -505,14 +523,14 @@ export const safeTabs = {
   async create(options) {
     return SafeChromeAPI.tabs('create', options);
   },
-  
+
   async remove(tabId) {
     return SafeChromeAPI.tabs('remove', tabId);
   },
-  
+
   async query(queryInfo) {
     return SafeChromeAPI.tabs('query', queryInfo);
-  }
+  },
 };
 
 /**
@@ -521,7 +539,7 @@ export const safeTabs = {
 export const safeScripting = {
   async executeScript(options) {
     return SafeChromeAPI.scripting('executeScript', options);
-  }
+  },
 };
 
 /**
@@ -530,7 +548,7 @@ export const safeScripting = {
 export const safeDownloads = {
   async download(options) {
     return SafeChromeAPI.downloads('download', options);
-  }
+  },
 };
 
 /**
@@ -540,8 +558,8 @@ export const safeRuntime = {
   async sendMessage(message) {
     return SafeChromeAPI.runtime('sendMessage', message);
   },
-  
+
   connect(options) {
     return SafeChromeAPI.runtime('connect', options);
-  }
+  },
 };

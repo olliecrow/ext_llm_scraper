@@ -1458,7 +1458,6 @@ Readability.prototype = {
       const textLength = this._getInnerText(articleContent, true).length;
       if (textLength < this._charThreshold) {
         parseSuccessful = false;
-        // eslint-disable-next-line no-unsanitized/property
         page.innerHTML = pageCacheHtml;
 
         this._attempts.push({
@@ -1818,7 +1817,6 @@ Readability.prototype = {
       // document contents, so doing this should be safe.
       // (Also we heavily discourage people from allowing script to
       // run at all in this document...)
-      // eslint-disable-next-line no-unsanitized/property
       tmp.innerHTML = noscript.innerHTML;
 
       // If noscript has previous sibling and it only contains image,

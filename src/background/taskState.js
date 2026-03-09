@@ -20,12 +20,12 @@ export class TaskState {
       maxPages: clamp(
         Number.isFinite(requestedPages) ? requestedPages : CONFIG.DEFAULTS.MAX_PAGES,
         CONFIG.LIMITS.MIN_PAGES,
-        CONFIG.LIMITS.MAX_PAGES,
+        CONFIG.LIMITS.MAX_PAGES
       ),
       concurrency: clamp(
         Number.isFinite(requestedConcurrency) ? requestedConcurrency : CONFIG.DEFAULTS.CONCURRENCY,
         CONFIG.LIMITS.MIN_CONCURRENCY,
-        CONFIG.LIMITS.MAX_CONCURRENCY,
+        CONFIG.LIMITS.MAX_CONCURRENCY
       ),
       delay: Number.isFinite(requestedDelay) && requestedDelay > 0 ? requestedDelay : 0,
     };
