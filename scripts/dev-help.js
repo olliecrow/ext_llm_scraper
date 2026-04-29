@@ -44,7 +44,6 @@ Distribution:
 
   src/
     ├── background/    → Service worker modules
-    ├── content/       → Content script
     ├── popup/         → Extension popup UI
     ├── lib/           → Third-party libraries
     └── shared/        → Shared utilities

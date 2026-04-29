@@ -81,7 +81,6 @@ try {
   // Use direct Chrome API for more reliable connection
   if (chrome?.runtime?.connect) {
     port = chrome.runtime.connect({ name: 'popup' });
-    console.log('Port connection established:', port);
   } else {
     console.warn('Chrome runtime connect unavailable');
     port = null;
@@ -175,7 +174,6 @@ document.getElementById('stopButton').addEventListener('click', async () => {
     const tabs = await safeTabs.query({ active: true, currentWindow: true });
     if (tabs && tabs.length > 0) {
       const tabId = tabs[0].id;
-      console.log('Sending subscribe message to background:', { action: 'subscribe', tabId });
       port.postMessage({ action: 'subscribe', tabId });
     }
   } catch (error) {
@@ -217,8 +215,6 @@ function addDebugLog(text) {
     dbg.textContent += `${text}\n`;
     dbg.scrollTop = dbg.scrollHeight;
   } else {
-    // Fallback to console if DOM not ready
-    console.log('[DEBUG]', text);
     // Queue message for when DOM is ready
     document.addEventListener(
       'DOMContentLoaded',

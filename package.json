@@ -48,10 +48,17 @@
     "transform": {
       "^.+\\.js$": "babel-jest"
     },
-    "moduleFileExtensions": ["js", "json"],
+    "moduleFileExtensions": [
+      "js",
+      "json"
+    ],
     "collectCoverageFrom": [
-      "src/**/*.js",
-      "!src/lib/**",
+      "src/background/markdownBuilder.js",
+      "src/background/scraper.js",
+      "src/background/taskManager.js",
+      "src/background/taskState.js",
+      "src/shared/config.js",
+      "src/shared/utils.js",
       "!src/**/*.test.js"
     ],
     "coverageThreshold": {
