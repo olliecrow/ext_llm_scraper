@@ -1,6 +1,7 @@
 # Decision Capture Policy
 
 ## Template
+
 ```
 Decision:
 Context:
@@ -57,3 +58,16 @@ Enforcement:
 `AGENTS.md` and any repo docs, remotes, automation, release, or publishing steps that need the owning GitHub account should point to `olliecrow` unless Ollie explicitly changes that ownership decision.
 References:
 `AGENTS.md`
+
+Decision:
+Keep one clear automated test path and keep old manual test copies out of the tracked tree.
+Context:
+The repository had several old root-level test scripts and a separate `test_extension/` copy. Some of those files hard-coded `/workspace/dist` and described old method names that no longer match the app.
+Rationale:
+One current test path is easier to trust. Stale test copies make the project look broken even when the real app checks pass.
+Trade-offs:
+Full installed-extension behavior still needs a browser smoke test because Chrome extension APIs are not fully covered by Jest.
+Enforcement:
+Use `npm run check`, `npm run check:all`, and `npm run build` as the main automated checks. Keep browser checks for popup behavior. Do not add tracked one-off test extensions unless they become part of the normal test flow.
+References:
+`package.json`, `docs/project-preferences.md`

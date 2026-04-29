@@ -2,6 +2,55 @@ import { CONFIG } from '../shared/config.js';
 import { delay, isValidUrl, hasExcludedExtension } from '../shared/utils.js';
 import { SafeChromeAPI } from '../shared/safeChromeAPI.js';
 
+export function extractPageContent() {
+  const response = {
+    url: window.location.href,
+    title: document.title || window.location.href,
+    content: '',
+    links: [],
+  };
+
+  try {
+    if (window.Readability) {
+      const parsed = new window.Readability(document.cloneNode(true)).parse();
+      if (parsed?.textContent) {
+        response.content = parsed.textContent.trim();
+        response.title = parsed.title || response.title;
+      }
+    }
+  } catch (error) {
+    console.warn('Readability extraction failed:', error.message);
+  }
+
+  if (!response.content || response.content.length < 100) {
+    const candidates = ['article', 'main', '[role="main"]', '.content', '.post'];
+    for (const selector of candidates) {
+      const element = document.querySelector(selector);
+      const text = element?.innerText?.trim() || element?.textContent?.trim() || '';
+      if (text.length > 200) {
+        response.content = text;
+        break;
+      }
+    }
+  }
+
+  if (!response.content) {
+    response.content = document.body?.innerText?.trim() || document.body?.textContent?.trim() || '';
+  }
+
+  response.links = Array.from(document.querySelectorAll('a[href]'))
+    .map((anchor) => anchor.href)
+    .filter((href) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(href).protocol);
+      } catch (_) {
+        return false;
+      }
+    });
+
+  return response;
+}
+
 export class PageScraper {
   constructor(taskManager) {
     this.taskManager = taskManager;
@@ -174,46 +223,7 @@ export class PageScraper {
   async extractContent(tabId) {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => {
-        const response = {
-          url: window.location.href,
-          title: document.title || window.location.href,
-          content: '',
-          links: [],
-        };
-
-        try {
-          if (window.Readability) {
-            const parsed = new window.Readability(document.cloneNode(true)).parse();
-            if (parsed?.textContent) {
-              response.content = parsed.textContent.trim();
-              response.title = parsed.title || response.title;
-            }
-          }
-        } catch (error) {
-          console.warn('Readability extraction failed:', error.message);
-        }
-
-        if (!response.content || response.content.length < 100) {
-          const candidates = ['article', 'main', '[role="main"]', '.content', '.post'];
-          for (const selector of candidates) {
-            const element = document.querySelector(selector);
-            if (element && element.innerText.trim().length > 200) {
-              response.content = element.innerText.trim();
-              break;
-            }
-          }
-        }
-
-        if (!response.content) {
-          response.content = document.body?.innerText?.trim() ?? '';
-        }
-
-        const links = Array.from(document.querySelectorAll('a[href]'));
-        response.links = links.map((anchor) => anchor.href).filter(Boolean);
-
-        return response;
-      },
+      func: extractPageContent,
     });
 
     return result?.result ?? null;

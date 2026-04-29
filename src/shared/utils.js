@@ -76,8 +76,7 @@ export function normalizeUrl(url, options = {}) {
     }
 
     return urlObj.toString();
-  } catch (e) {
-    console.warn(`Invalid URL: ${url}`);
+  } catch (_) {
     return url;
   }
 }
@@ -196,8 +195,13 @@ export function isValidUrl(url) {
  * @returns {boolean} - Whether the URL has an excluded extension
  */
 export function hasExcludedExtension(url, excludedExtensions) {
-  const lowercaseUrl = url.toLowerCase();
-  return excludedExtensions.some((ext) => lowercaseUrl.endsWith(ext));
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return excludedExtensions.some((ext) => pathname.endsWith(ext));
+  } catch (_) {
+    const lowercaseUrl = String(url).toLowerCase();
+    return excludedExtensions.some((ext) => lowercaseUrl.endsWith(ext));
+  }
 }
 
 /**

@@ -35,4 +35,36 @@ describe('SafeChromeAPI wrappers', () => {
     const tabs = await safeTabs.query({ active: true });
     expect(tabs[0].url).toBe('https://example.com');
   });
+
+  test('wraps scripting and download APIs', async () => {
+    await expect(
+      SafeChromeAPI.scripting('executeScript', { target: { tabId: 1 }, func: () => null })
+    ).resolves.toEqual([
+      {
+        result: {
+          url: 'https://example.com',
+          title: 'Example',
+          content: 'Example content',
+          links: [],
+        },
+      },
+    ]);
+
+    await expect(
+      SafeChromeAPI.downloads('download', { url: 'data:text/plain,hello', filename: 'hello.txt' })
+    ).resolves.toBe(123);
+  });
+
+  test('returns null when runtime sendMessage cannot reach the background worker', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    chrome.runtime.sendMessage.mockImplementationOnce((_message, callback) => {
+      chrome.runtime.lastError = { message: 'receiving end does not exist' };
+      callback();
+      chrome.runtime.lastError = null;
+    });
+
+    const response = await SafeChromeAPI.sendMessageWithRetry({ action: 'ping' }, 1);
+    expect(response).toBeNull();
+    warnSpy.mockRestore();
+  });
 });

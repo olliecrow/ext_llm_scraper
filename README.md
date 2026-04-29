@@ -52,7 +52,8 @@ The generated Markdown includes.
 ## Testing and QA
 
 - Unit tests cover state flow, scraper workflow, utility functions, and Chrome wrappers.
-- Manual smoke tests were run against representative sites.
+- `npm run check:all` covers the core modules that can run outside Chrome.
+- Browser smoke checks cover popup behavior because it depends on Chrome extension APIs.
 - `npm run build` verifies packaging.
 
 ## Notes
@@ -68,6 +69,7 @@ The generated Markdown includes.
 - `docs/project-preferences.md`: durable maintenance and verification preferences
 
 ## Third-Party Dependency Trust Policy
+
 - Prefer official packages, libraries, SDKs, frameworks, and services from authoritative sources.
 - Prefer options that are reputable, well-maintained, popular, and well-supported.
 - Before adopting or upgrading third-party dependencies, verify ownership/publisher authenticity, maintenance activity, security history, license fit, and ecosystem adoption.
@@ -76,8 +78,11 @@ The generated Markdown includes.
 - If trust signals are unclear, do not adopt the dependency until explicitly approved.
 
 <!-- third-party-policy:start -->
+
 ## Third-Party Code Policy
+
 This repository allows external-code snapshots for static analysis only. External clones must stay in ephemeral `plan/` locations, be sanitized immediately (`rm -rf .git`, or remove all remotes first if `.git` is temporarily retained), and must never be executed.
 
 See `docs/untrusted-third-party-repos.md`.
+
 <!-- third-party-policy:end -->

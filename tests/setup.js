@@ -63,22 +63,8 @@ global.chrome = {
       },
     ])),
   },
-  storage: {
-    local: {
-      get: jest.fn(() => Promise.resolve({})),
-      set: jest.fn(() => Promise.resolve()),
-      remove: jest.fn(() => Promise.resolve()),
-      clear: jest.fn(() => Promise.resolve()),
-      getBytesInUse: jest.fn(() => Promise.resolve(1024)),
-      QUOTA_BYTES: 10485760, // 10MB
-    },
-  },
   downloads: {
     download: jest.fn(() => Promise.resolve(123)),
-  },
-  offscreen: {
-    createDocument: jest.fn(),
-    closeDocument: jest.fn(),
   },
 };
 

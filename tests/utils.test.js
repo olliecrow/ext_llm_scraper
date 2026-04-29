@@ -1,8 +1,15 @@
 // Tests for utility functions from the existing codebase
-import { normalizeUrl, isValidUrl, extractDomain, hasExcludedExtension, generateFilename } from '../src/shared/utils.js';
+import {
+  normalizeUrl,
+  isValidUrl,
+  extractDomain,
+  hasExcludedExtension,
+  generateFilename,
+  usesSPAHashRouting,
+  getSPANavigationDelay,
+} from '../src/shared/utils.js';
 
 describe('URL Normalization', () => {
-
   test('removes hash fragments', () => {
     const url = 'https://example.com/page#section';
     expect(normalizeUrl(url)).toBe('https://example.com/page');
@@ -98,20 +105,43 @@ describe('File Extension Filtering', () => {
     expect(hasExcludedExtension('https://example.com/FILE.PDF', excludedExtensions)).toBe(true);
     expect(hasExcludedExtension('https://example.com/IMAGE.JPG', excludedExtensions)).toBe(true);
   });
+
+  test('detects excluded extensions before query strings and hashes', () => {
+    expect(
+      hasExcludedExtension('https://example.com/file.pdf?download=1', excludedExtensions)
+    ).toBe(true);
+    expect(hasExcludedExtension('https://example.com/archive.zip#top', excludedExtensions)).toBe(
+      true
+    );
+  });
+});
+
+describe('SPA Hash Routes', () => {
+  test('keeps hash routes but removes normal anchors', () => {
+    expect(normalizeUrl('https://example.com/#/docs?tab=1')).toBe('https://example.com/#/docs');
+    expect(normalizeUrl('https://example.com/page#section')).toBe('https://example.com/page');
+  });
+
+  test('detects route-like hashes and sets navigation delay', () => {
+    expect(usesSPAHashRouting('https://example.com/#/docs')).toBe(true);
+    expect(usesSPAHashRouting('https://example.com/page#section')).toBe(false);
+    expect(getSPANavigationDelay('https://example.com/#/docs')).toBe(2000);
+    expect(getSPANavigationDelay('https://example.com/page')).toBe(500);
+  });
 });
 
 describe('Filename Generation', () => {
   test('generates filename with domain and timestamp', () => {
     const domain = 'example.com';
     const filename = generateFilename(domain);
-    
+
     expect(filename).toMatch(/^example\.com_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.md$/);
   });
 
   test('handles domain with subdomain', () => {
     const domain = 'blog.example.com';
     const filename = generateFilename(domain);
-    
+
     expect(filename).toMatch(/^blog\.example\.com_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.md$/);
   });
 });

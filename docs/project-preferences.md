@@ -21,8 +21,11 @@ These preferences define how `ext_llm_scraper` should be maintained as an open-s
 
 ## Verification Expectations
 
-- Run `npm test` and `npm run build` for meaningful code changes.
-- Run manual smoke checks in Chrome for popup flow and markdown output when scraping behavior changes.
+- Run `npm run check`, `npm run check:all`, and `npm run build` for meaningful code changes.
+- Treat `npm run check:all` as coverage for the core, testable modules: scraper, task state, task manager, markdown builder, config, and URL helpers.
+- Use browser smoke checks for popup behavior because the popup depends on Chrome extension APIs.
+- Do not keep stale one-off test extensions or hard-coded local test scripts in the tracked tree.
+- Run manual smoke checks in Chrome for full extension popup flow and markdown output when scraping behavior changes.
 
 ## Collaboration Preferences
 
