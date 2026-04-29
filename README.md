@@ -58,7 +58,7 @@ The generated Markdown includes.
 
 ## Notes
 
-- Host permissions are limited to pages you activate through the popup.
+- The extension requests `http://*/*` and `https://*/*` host permissions so it can open and read same-domain pages during a crawl. A scrape still starts only from the popup.
 - Default concurrency is 10 tabs, max is 15.
 - The repo omits historical builds and debug bundles to keep the public release tidy.
 
