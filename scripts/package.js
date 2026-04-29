@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createWriteStream } from 'fs';
-import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,8 +12,9 @@ const DIST_DIR = path.join(__dirname, '..', 'dist');
 const ROOT_DIR = path.join(__dirname, '..');
 
 // Check if archiver is installed, if not, suggest installation
+let archiver;
 try {
-  await import('archiver');
+  ({ default: archiver } = await import('archiver'));
 } catch (error) {
   console.error('❌ archiver package not found. Please install it:');
   console.error('   npm install --save-dev archiver');
