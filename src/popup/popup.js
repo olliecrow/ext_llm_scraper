@@ -121,10 +121,12 @@ document.getElementById('startButton').addEventListener('click', async () => {
     if (response === null) {
       addDebugLog('Warning: Background script unavailable - task may not start properly');
       addDebugLog('Try reloading the extension or refreshing the page');
-    } else {
+    } else if (response.success) {
       document.getElementById('startButton').disabled = true;
       document.getElementById('stopButton').disabled = false;
       addDebugLog('User pressed Start. Task started...');
+    } else {
+      addDebugLog(`Error starting task: ${response.error || 'Unknown background error'}`);
     }
   } catch (error) {
     addDebugLog(`Error starting task: ${error.message}`);
@@ -146,10 +148,12 @@ document.getElementById('stopButton').addEventListener('click', async () => {
     if (response === null) {
       addDebugLog('Warning: Background script unavailable - stop command may not be received');
       addDebugLog('Try reloading the extension if task continues running');
-    } else {
+    } else if (response.success) {
       document.getElementById('startButton').disabled = false;
       document.getElementById('stopButton').disabled = true;
       addDebugLog('Stop requested by user.');
+    } else {
+      addDebugLog(`Error stopping task: ${response.error || 'Unknown background error'}`);
     }
   } catch (error) {
     addDebugLog(`Error stopping task: ${error.message}`);
