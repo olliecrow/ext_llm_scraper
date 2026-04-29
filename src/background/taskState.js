@@ -119,7 +119,7 @@ export class TaskState {
       return false;
     }
 
-    if (this.processed + this.queue.length >= this.settings.maxPages) {
+    if (this.processed + this.inProgress + this.queue.length >= this.settings.maxPages) {
       return false;
     }
 

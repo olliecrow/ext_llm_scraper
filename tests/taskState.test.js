@@ -39,6 +39,16 @@ describe('TaskState', () => {
     expect(task.addToQueue('https://example.com/page-3')).toBe(false);
   });
 
+  test('counts active pages when queuing links', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 3 });
+    task.getNextUrl();
+    task.inProgress = 1;
+
+    expect(task.addToQueue('https://example.com/page-1')).toBe(true);
+    expect(task.addToQueue('https://example.com/page-2')).toBe(true);
+    expect(task.addToQueue('https://example.com/page-3')).toBe(false);
+  });
+
   test('canSchedule requires queue capacity and respects abort flag', () => {
     const task = new TaskState(1, START_URL, { concurrency: 1, maxPages: 1 });
 
