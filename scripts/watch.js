@@ -27,7 +27,7 @@ async function rebuild() {
 
   isBuilding = true;
   console.log('🔨 Rebuilding extension...');
-  
+
   try {
     const startTime = Date.now();
     await execAsync('npm run build');
@@ -42,18 +42,22 @@ async function rebuild() {
 
 function watchDirectory(dir) {
   fs.watch(dir, { recursive: true }, (eventType, filename) => {
-    if (!filename) return;
-    
+    if (!filename) {
+      return;
+    }
+
     // Ignore certain files
-    if (filename.includes('.test.js') || 
-        filename.includes('.spec.js') ||
-        filename.startsWith('.') ||
-        filename.includes('node_modules')) {
+    if (
+      filename.includes('.test.js') ||
+      filename.includes('.spec.js') ||
+      filename.startsWith('.') ||
+      filename.includes('node_modules')
+    ) {
       return;
     }
 
     console.log(`📝 ${eventType}: ${filename}`);
-    
+
     // Debounce rebuilds to avoid multiple rapid builds
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(rebuild, DEBOUNCE_DELAY);

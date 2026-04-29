@@ -25,13 +25,13 @@ function shouldSkipEntry(name) {
  */
 function copyRecursive(src, dest) {
   const stats = fs.statSync(src);
-  
+
   if (stats.isDirectory()) {
     // Create directory if it doesn't exist
     if (!fs.existsSync(dest)) {
       fs.mkdirSync(dest, { recursive: true });
     }
-    
+
     // Copy all files in directory
     const files = fs.readdirSync(src);
     for (const file of files) {
@@ -52,26 +52,23 @@ function copyRecursive(src, dest) {
  */
 function build() {
   console.log('Building extension...\n');
-  
+
   // Clean dist directory
   if (fs.existsSync(distDir)) {
     fs.rmSync(distDir, { recursive: true, force: true });
     console.log('Cleaned dist directory');
   }
-  
+
   // Create dist directory
   fs.mkdirSync(distDir, { recursive: true });
-  
+
   // Copy src directory
   copyRecursive(srcDir, path.join(distDir, 'src'));
-  
+
   // Copy manifest.json
-  fs.copyFileSync(
-    path.join(rootDir, 'manifest.json'),
-    path.join(distDir, 'manifest.json')
-  );
+  fs.copyFileSync(path.join(rootDir, 'manifest.json'), path.join(distDir, 'manifest.json'));
   console.log('Copied: manifest.json');
-  
+
   // Create a simple README for the dist folder
   const readmeContent = `# Webpage Scraper Extension - Distribution Build
 
@@ -87,10 +84,10 @@ This is the distribution build of the Webpage Scraper Chrome Extension.
 ## Build Date
 ${new Date().toISOString()}
 `;
-  
+
   fs.writeFileSync(path.join(distDir, 'README.md'), readmeContent);
   console.log('Created: dist/README.md');
-  
+
   console.log('\n✅ Build complete!');
   console.log(`Extension ready in: ${path.relative(rootDir, distDir)}`);
 }

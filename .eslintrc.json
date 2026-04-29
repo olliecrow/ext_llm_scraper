@@ -47,6 +47,15 @@
         "no-constant-condition": "off"
       },
       "reportUnusedDisableDirectives": false
+    },
+    {
+      "files": ["scripts/**/*.js"],
+      "env": {
+        "node": true
+      },
+      "rules": {
+        "no-console": "off"
+      }
     }
   ]
 }

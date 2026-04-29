@@ -1,5 +1,5 @@
 // Mock Chrome API for testing
-global.chrome = {
+globalThis.chrome = {
   runtime: {
     onMessage: {
       addListener: jest.fn(),
@@ -52,16 +52,18 @@ global.chrome = {
     },
   },
   scripting: {
-    executeScript: jest.fn(() => Promise.resolve([
-      {
-        result: {
-          url: 'https://example.com',
-          title: 'Example',
-          content: 'Example content',
-          links: [],
+    executeScript: jest.fn(() =>
+      Promise.resolve([
+        {
+          result: {
+            url: 'https://example.com',
+            title: 'Example',
+            content: 'Example content',
+            links: [],
+          },
         },
-      },
-    ])),
+      ])
+    ),
   },
   downloads: {
     download: jest.fn(() => Promise.resolve(123)),
@@ -69,7 +71,7 @@ global.chrome = {
 };
 
 // Mock Readability
-global.Readability = jest.fn().mockImplementation(() => ({
+globalThis.Readability = jest.fn().mockImplementation(() => ({
   parse: jest.fn().mockReturnValue({
     title: 'Test Title',
     textContent: 'Test content',
@@ -77,17 +79,17 @@ global.Readability = jest.fn().mockImplementation(() => ({
 }));
 
 // Mock URL methods for blob handling
-global.URL.createObjectURL = jest.fn(() => 'mocked-blob-url');
-global.URL.revokeObjectURL = jest.fn();
+globalThis.URL.createObjectURL = jest.fn(() => 'mocked-blob-url');
+globalThis.URL.revokeObjectURL = jest.fn();
 
 // Mock Blob constructor
-global.Blob = jest.fn((content, options) => ({
+globalThis.Blob = jest.fn((content, options) => ({
   size: content[0].length,
   type: options?.type || 'text/plain',
 }));
 
 // Mock performance for content filtering
-global.performance = {
+globalThis.performance = {
   now: jest.fn(() => Date.now()),
 };
 
