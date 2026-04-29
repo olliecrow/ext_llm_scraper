@@ -13,6 +13,7 @@ These preferences define how `ext_llm_scraper` should be maintained as an open-s
 - Never commit secrets, credentials, tokens, API keys, or private key material.
 - Never commit private or sensitive machine paths. Use placeholders like `/path/to/project` when examples are needed.
 - Keep local build and runtime artifacts untracked (`dist/`, `coverage/`, temp files).
+- Keep permission notes aligned with `manifest.json`. The extension currently uses broad `http://*/*` and `https://*/*` host permissions so crawl mode can open and read same-domain pages.
 
 ## Documentation Expectations
 
