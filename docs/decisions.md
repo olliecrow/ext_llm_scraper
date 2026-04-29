@@ -68,6 +68,6 @@ One current test path is easier to trust. Stale test copies make the project loo
 Trade-offs:
 Full installed-extension behavior still needs a browser smoke test because Chrome extension APIs are not fully covered by Jest.
 Enforcement:
-Use `npm run check`, `npm run check:all`, and `npm run build` as the main automated checks. Keep browser checks for popup behavior. Do not add tracked one-off test extensions unless they become part of the normal test flow.
+Use `npm run check`, `npm run check:all`, and `npm run build` as the main automated checks. Format and lint source files, tests, and JavaScript scripts through the same package scripts. Keep browser checks for popup behavior. Do not add tracked one-off test extensions unless they become part of the normal test flow.
 References:
 `package.json`, `docs/project-preferences.md`

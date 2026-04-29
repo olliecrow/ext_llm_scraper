@@ -46,7 +46,7 @@ console.log(`📦 Creating extension package: ${outputFilename}`);
 // Create a write stream for the zip file
 const output = createWriteStream(outputPath);
 const archive = archiver('zip', {
-  zlib: { level: 9 } // Maximum compression
+  zlib: { level: 9 }, // Maximum compression
 });
 
 // Listen for archive warnings
