@@ -1,72 +1,26 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-error.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# Build outputs
-dist/
-build/
-*.zip
-
-# Test coverage
-coverage/
-*.lcov
-.nyc_output/
-
-# IDE and editor files
+.DS_Store
+.env
+.env.local
+.env.*.local
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Debug logs
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
 *.log
-logs/
-
-# Temporary files
-tmp/
-temp/
 *.tmp
 *.temp
-
-# OS files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Desktop.ini
-
-# Chrome extension specific
+tmp/
+temp/
+*.zip
 *.crx
 *.pem
 *.key
 *.p12
 *.pfx
-key.pem
-
-# Claude Code agent files
-.claude/
-
-# Plan files
 plan/
-**/plan/
-plan/**
-**/plan/**
-
-# Package manager locks (keeping package-lock.json tracked)
-# Uncomment if you prefer not to track lock files
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
