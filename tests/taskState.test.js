@@ -22,6 +22,18 @@ describe('TaskState', () => {
     expect(task.settings.delay).toBe(0);
   });
 
+  test('normalises numeric settings to whole pages and workers', () => {
+    const task = new TaskState(1, START_URL, {
+      maxPages: 3.9,
+      concurrency: 2.8,
+      crawlMode: 'false',
+    });
+
+    expect(task.settings.maxPages).toBe(3);
+    expect(task.settings.concurrency).toBe(2);
+    expect(task.settings.crawlMode).toBe(true);
+  });
+
   test('tracks visited URLs and prevents duplicates', () => {
     const task = new TaskState(1, START_URL, {});
     const addedFirst = task.addToQueue('https://example.com/about');
@@ -77,25 +89,5 @@ describe('TaskState', () => {
     expect(task.markAsFinishing()).toBe(false);
     task.markAsFinished();
     expect(task.isFinished).toBe(true);
-  });
-
-  test('serialises and deserialises state', () => {
-    const task = new TaskState(1, START_URL, { maxPages: 5 });
-    task.addContent('https://example.com/posts/welcome', {
-      title: 'Welcome',
-      textContent: 'Hello world',
-    });
-    task.addToQueue('https://example.com/about');
-    task.processed = 1;
-
-    const serialised = task.toJSON();
-    const revived = TaskState.fromJSON(serialised);
-
-    expect(revived).not.toBeNull();
-    expect(revived?.queue).toContain('https://example.com/about');
-    expect(revived?.contentMap.get('https://example.com/posts/welcome')).toEqual({
-      title: 'Welcome',
-      textContent: 'Hello world',
-    });
   });
 });

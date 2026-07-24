@@ -96,20 +96,4 @@ export class MarkdownBuilder {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
-
-  /**
-   * Gets statistics about the scraped content
-   * @returns {Object}
-   */
-  getStats() {
-    const totalCharacters = this.pages.reduce((sum, page) => sum + page.content.length, 0);
-    const avgContentLength =
-      this.pages.length > 0 ? Math.round(totalCharacters / this.pages.length) : 0;
-
-    return {
-      pageCount: this.pages.length,
-      totalCharacters,
-      avgContentLength,
-    };
-  }
 }

@@ -1,7 +1,6 @@
 import { TaskManager } from './taskManager.js';
 import { PageScraper } from './scraper.js';
 import { MarkdownBuilder } from './markdownBuilder.js';
-import { SafeChromeAPI } from '../shared/safeChromeAPI.js';
 import { generateFilename } from '../shared/utils.js';
 
 const taskManager = new TaskManager();
@@ -59,7 +58,6 @@ async function finishTask(task) {
     status: 'Scraping complete',
     processed: task.processed,
     total: task.processed,
-    content: markdown,
   });
 
   task.markAsFinished();
@@ -71,7 +69,7 @@ async function attemptDownload(task, content) {
     const filename = generateFilename(task.startingDomain);
     const dataUrl = `data:text/markdown;charset=utf-8,${encodeURIComponent(content)}`;
 
-    await SafeChromeAPI.downloads('download', {
+    await chrome.downloads.download({
       url: dataUrl,
       filename,
       saveAs: false,

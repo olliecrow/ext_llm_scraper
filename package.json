@@ -7,7 +7,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:unit": "jest --no-coverage",
     "lint": "eslint \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\"",
     "lint:fix": "eslint \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\" --fix",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\"",
@@ -16,11 +15,8 @@
     "build:watch": "node scripts/watch.js",
     "clean": "rm -rf dist coverage *.zip",
     "package": "npm run build && node scripts/package.js",
-    "check": "npm run format:check && npm run lint && npm run test:unit",
     "check:all": "npm run format:check && npm run lint && npm run test:coverage",
-    "precommit": "npm run check",
-    "dev": "npm run build && npm run build:watch",
-    "help": "node scripts/dev-help.js"
+    "dev": "npm run build && npm run build:watch"
   },
   "keywords": [
     "chrome-extension",
@@ -28,17 +24,14 @@
     "markdown",
     "readability"
   ],
-  "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@babel/core": "^7.28.3",
     "@babel/preset-env": "^7.28.3",
-    "@types/chrome": "^0.0.254",
     "archiver": "^6.0.1",
     "babel-jest": "^30.2.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.1.2",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "prettier": "^3.1.1"

@@ -1,6 +1,5 @@
 import { CONFIG } from '../shared/config.js';
 import { delay, isValidUrl, hasExcludedExtension } from '../shared/utils.js';
-import { SafeChromeAPI } from '../shared/safeChromeAPI.js';
 
 export function extractPageContent() {
   const response = {
@@ -79,15 +78,18 @@ export class PageScraper {
 
     let tab = null;
     task.inProgress += 1;
-    task.markChanged();
 
     try {
-      tab = await SafeChromeAPI.tabs('create', { url, active: false });
+      tab = await chrome.tabs.create({ url, active: false });
       if (!tab || typeof tab.id !== 'number') {
         throw new Error('Failed to create background tab');
       }
 
       await this.waitForTabLoad(tab.id);
+      if (task.abort) {
+        return false;
+      }
+
       await this.injectReadability(tab.id);
       const content = await this.extractContent(tab.id);
 
@@ -122,10 +124,9 @@ export class PageScraper {
     } finally {
       task.inProgress = Math.max(0, task.inProgress - 1);
       task.processed += 1;
-      task.markChanged();
 
       if (tab?.id !== undefined) {
-        await SafeChromeAPI.tabs('remove', tab.id).catch(() => undefined);
+        await chrome.tabs.remove(tab.id).catch(() => undefined);
       }
 
       if (task.settings.delay > 0) {
@@ -145,6 +146,10 @@ export class PageScraper {
 
     for (const link of links) {
       if (typeof link !== 'string' || !isValidUrl(link)) {
+        continue;
+      }
+
+      if (hasExcludedExtension(link, CONFIG.EXCLUDED_EXTENSIONS)) {
         continue;
       }
 

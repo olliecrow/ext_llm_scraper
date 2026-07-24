@@ -1,25 +1,15 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
+import fs, { createWriteStream } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createWriteStream } from 'fs';
+import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DIST_DIR = path.join(__dirname, '..', 'dist');
 const ROOT_DIR = path.join(__dirname, '..');
-
-// Check if archiver is installed, if not, suggest installation
-let archiver;
-try {
-  ({ default: archiver } = await import('archiver'));
-} catch (error) {
-  console.error('❌ archiver package not found. Please install it:');
-  console.error('   npm install --save-dev archiver');
-  process.exit(1);
-}
 
 // Get version from package.json
 const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));

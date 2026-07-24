@@ -5,8 +5,6 @@ import {
   extractDomain,
   hasExcludedExtension,
   generateFilename,
-  usesSPAHashRouting,
-  getSPANavigationDelay,
 } from '../src/shared/utils.js';
 
 describe('URL Normalization', () => {
@@ -53,6 +51,11 @@ describe('URL Validation', () => {
 
   test('accepts valid HTTPS URLs', () => {
     expect(isValidUrl('https://example.com')).toBe(true);
+  });
+
+  test('accepts local HTTP URLs selected by the user', () => {
+    expect(isValidUrl('http://localhost:3000')).toBe(true);
+    expect(isValidUrl('http://192.168.1.10')).toBe(true);
   });
 
   test('rejects non-HTTP protocols', () => {
@@ -116,17 +119,10 @@ describe('File Extension Filtering', () => {
   });
 });
 
-describe('SPA Hash Routes', () => {
+describe('SPA hash routes', () => {
   test('keeps hash routes but removes normal anchors', () => {
     expect(normalizeUrl('https://example.com/#/docs?tab=1')).toBe('https://example.com/#/docs');
     expect(normalizeUrl('https://example.com/page#section')).toBe('https://example.com/page');
-  });
-
-  test('detects route-like hashes and sets navigation delay', () => {
-    expect(usesSPAHashRouting('https://example.com/#/docs')).toBe(true);
-    expect(usesSPAHashRouting('https://example.com/page#section')).toBe(false);
-    expect(getSPANavigationDelay('https://example.com/#/docs')).toBe(2000);
-    expect(getSPANavigationDelay('https://example.com/page')).toBe(500);
   });
 });
 

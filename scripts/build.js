@@ -11,88 +11,25 @@ const distDir = path.join(rootDir, 'dist');
 const srcDir = path.join(rootDir, 'src');
 
 function shouldSkipEntry(name) {
-  if (name === '.DS_Store' || name === 'Thumbs.db') {
-    return true;
-  }
-  if (name.startsWith('._')) {
-    return true;
-  }
-  return false;
+  return name === '.DS_Store' || name === 'Thumbs.db' || name.startsWith('._');
 }
 
-/**
- * Recursively copies files from source to destination
- */
-function copyRecursive(src, dest) {
-  const stats = fs.statSync(src);
-
-  if (stats.isDirectory()) {
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dest)) {
-      fs.mkdirSync(dest, { recursive: true });
-    }
-
-    // Copy all files in directory
-    const files = fs.readdirSync(src);
-    for (const file of files) {
-      if (shouldSkipEntry(file)) {
-        continue;
-      }
-      copyRecursive(path.join(src, file), path.join(dest, file));
-    }
-  } else {
-    // Copy file
-    fs.copyFileSync(src, dest);
-    console.log(`Copied: ${path.relative(rootDir, src)} -> ${path.relative(rootDir, dest)}`);
-  }
-}
-
-/**
- * Main build function
- */
 function build() {
-  console.log('Building extension...\n');
+  console.log('Building extension...');
 
-  // Clean dist directory
-  if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true, force: true });
-    console.log('Cleaned dist directory');
-  }
-
-  // Create dist directory
+  fs.rmSync(distDir, { recursive: true, force: true });
   fs.mkdirSync(distDir, { recursive: true });
 
-  // Copy src directory
-  copyRecursive(srcDir, path.join(distDir, 'src'));
-
-  // Copy manifest.json
+  fs.cpSync(srcDir, path.join(distDir, 'src'), {
+    recursive: true,
+    filter: (source) => !shouldSkipEntry(path.basename(source)),
+  });
   fs.copyFileSync(path.join(rootDir, 'manifest.json'), path.join(distDir, 'manifest.json'));
-  console.log('Copied: manifest.json');
 
-  // Create a simple README for the dist folder
-  const readmeContent = `# Webpage Scraper Extension - Distribution Build
-
-This is the distribution build of the Webpage Scraper Chrome Extension.
-
-## Installation
-
-1. Open Chrome and navigate to chrome://extensions/
-2. Enable "Developer mode" in the top right
-3. Click "Load unpacked"
-4. Select this dist folder
-
-## Build Date
-${new Date().toISOString()}
-`;
-
-  fs.writeFileSync(path.join(distDir, 'README.md'), readmeContent);
-  console.log('Created: dist/README.md');
-
-  console.log('\n✅ Build complete!');
+  console.log('Build complete.');
   console.log(`Extension ready in: ${path.relative(rootDir, distDir)}`);
 }
 
-// Run build
 try {
   build();
 } catch (error) {
