@@ -82,108 +82,15 @@ export function normalizeUrl(url, options = {}) {
 }
 
 /**
- * Validates if a URL is valid for scraping with SSRF protection
+ * Validates whether a URL can be opened by the scraper.
  * @param {string} url - The URL to validate
  * @returns {boolean} - Whether the URL is valid
  */
 export function isValidUrl(url) {
   try {
     const urlObj = new URL(url);
-
-    // Protocol validation
-    if (!['http:', 'https:'].includes(urlObj.protocol)) {
-      return false;
-    }
-
-    // SSRF protection: Block private IP ranges and dangerous hostnames
-    const hostname = urlObj.hostname.toLowerCase();
-
-    // Block localhost and loopback addresses (IPv4)
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      console.warn(`Blocked dangerous hostname: ${hostname}`);
-      return false;
-    }
-
-    // Block IPv6 localhost and loopback addresses
-    if (hostname === '::1' || hostname === '[::1]') {
-      console.warn(`Blocked IPv6 localhost: ${hostname}`);
-      return false;
-    }
-
-    // Block IPv6-mapped IPv4 addresses (critical security fix)
-    if (hostname.includes('::ffff:') || hostname.includes('[::ffff:')) {
-      console.warn(`Blocked IPv6-mapped IPv4 address: ${hostname}`);
-      return false;
-    }
-
-    // Block IPv4-compatible IPv6 addresses (browsers convert [::127.0.0.1] to [::7f00:1])
-    if (hostname.includes('::')) {
-      // Check for dangerous hex patterns that represent private/localhost IPs
-      const dangerousHexPatterns = [
-        /::7f00:/, // 127.0.0.x (localhost)
-        /::7f01:/, // 127.1.0.x
-        /::7fff:/, // 127.255.x.x
-        /::a00:/, // 10.0.x.x (Class A private)
-        /::a01:/, // 10.1.x.x
-        /::aff:/, // 10.255.x.x
-        /::c0a8:/, // 192.168.x.x (Class C private)
-        /::ac1[0-9a-f]:/, // 172.16-31.x.x (Class B private)
-        /::a9fe:/, // 169.254.x.x (link-local)
-      ];
-
-      for (const pattern of dangerousHexPatterns) {
-        if (pattern.test(hostname)) {
-          console.warn(`Blocked IPv4-compatible IPv6 with dangerous hex pattern: ${hostname}`);
-          return false;
-        }
-      }
-
-      // Also block specific dangerous endpoints in hex
-      const dangerousHexAddresses = [
-        '::7f00:1', // 127.0.0.1
-        '::a9fe:a9fe', // 169.254.169.254 (AWS metadata)
-      ];
-
-      for (const addr of dangerousHexAddresses) {
-        if (hostname.includes(addr)) {
-          console.warn(`Blocked IPv4-compatible IPv6 with dangerous address: ${hostname}`);
-          return false;
-        }
-      }
-    }
-
-    // Block private IP ranges (RFC 1918)
-    const privateIPPatterns = [
-      /^127\./, // Loopback
-      /^10\./, // Class A private
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Class B private
-      /^192\.168\./, // Class C private
-      /^169\.254\./, // Link-local
-      /^0\.0\.0\.0$/, // Null address
-    ];
-
-    for (const pattern of privateIPPatterns) {
-      if (pattern.test(hostname)) {
-        console.warn(`Blocked private IP: ${hostname}`);
-        return false;
-      }
-    }
-
-    // Block common metadata service endpoints
-    const blockedHostnames = [
-      'metadata.google.internal',
-      'metadata',
-      'mds.amazonaws.com',
-      '169.254.169.254',
-    ];
-
-    if (blockedHostnames.includes(hostname)) {
-      console.warn(`Blocked metadata endpoint: ${hostname}`);
-      return false;
-    }
-
-    return true;
-  } catch (e) {
+    return ['http:', 'https:'].includes(urlObj.protocol);
+  } catch {
     return false;
   }
 }
@@ -212,7 +119,7 @@ export function hasExcludedExtension(url, excludedExtensions) {
 export function extractDomain(url) {
   try {
     return new URL(url).hostname;
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -234,32 +141,4 @@ export function delay(ms) {
 export function generateFilename(domain) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   return `${domain}_${timestamp}.md`;
-}
-
-/**
- * Detects if a URL uses SPA hash routing
- * @param {string} url - The URL to check
- * @returns {boolean} - Whether the URL uses SPA hash routing
- */
-export function usesSPAHashRouting(url) {
-  try {
-    const urlObj = new URL(url);
-    return isSPARoute(urlObj.hash);
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Gets a delay time for SPA route changes to complete
- * @param {string} url - The URL being navigated to
- * @returns {number} - Delay in milliseconds
- */
-export function getSPANavigationDelay(url) {
-  if (usesSPAHashRouting(url)) {
-    // Longer delay for SPA routes to ensure content loads
-    return 2000;
-  }
-  // Standard delay for regular pages
-  return 500;
 }

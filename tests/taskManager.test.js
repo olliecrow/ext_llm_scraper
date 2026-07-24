@@ -45,20 +45,20 @@ describe('TaskManager', () => {
     expect(port.postMessage).not.toHaveBeenCalled();
   });
 
-  test('cleanup saves pending changes before removing task', () => {
+  test('cleanup removes the task', () => {
     const manager = new TaskManager();
-    const task = manager.createTask(1, 'https://example.com', {});
-    const saveCallback = jest.fn();
-
-    task.setSaveCallback(saveCallback);
-    task.addContent('https://example.com', {
-      title: 'Example',
-      textContent: 'Example content',
-    });
+    manager.createTask(1, 'https://example.com', {});
 
     manager.cleanupTask(1);
 
-    expect(saveCallback).toHaveBeenCalledWith(task);
     expect(manager.getTask(1)).toBeNull();
+  });
+
+  test('rejects unsupported starting URLs', () => {
+    const manager = new TaskManager();
+
+    expect(() => manager.createTask(1, 'chrome://extensions', {})).toThrow(
+      'Starting URL must use HTTP or HTTPS'
+    );
   });
 });

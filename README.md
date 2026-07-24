@@ -16,7 +16,7 @@ Help you archive a page, or a set of related pages on the same domain, into one 
 ## Quick start
 
 ```bash
-npm install
+npm ci
 npm test
 npm run build
 ```
@@ -56,8 +56,17 @@ The generated Markdown includes.
 - Browser smoke checks cover popup behavior because it depends on Chrome extension APIs.
 - `npm run build` verifies packaging.
 
+## Privacy and permissions
+
+- Scraping and Markdown generation happen locally in the browser. The extension has no analytics, remote collection, credentials, or hidden services.
+- The extension requests `http://*/*` and `https://*/*` host permissions so it can open and read same-domain pages during a user-started crawl.
+- The `downloads` permission saves the generated Markdown, and `scripting` extracts content from pages selected by the crawl.
+
 ## Notes
 
-- The extension requests `http://*/*` and `https://*/*` host permissions so it can open and read same-domain pages during a crawl. A scrape still starts only from the popup.
 - Default concurrency is 10 tabs, max is 15.
 - The repo omits historical builds and debug bundles to keep the public release tidy.
+
+## License
+
+Apache-2.0. See `LICENSE`.

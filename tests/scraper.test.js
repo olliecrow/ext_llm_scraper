@@ -60,10 +60,23 @@ describe('PageScraper', () => {
     expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
 
+  test('stops before extraction when cancellation arrives during page load', async () => {
+    jest.spyOn(scraper, 'waitForTabLoad').mockImplementation(async () => {
+      task.abort = true;
+    });
+
+    const result = await scraper.scrape(task, 'https://example.com/about');
+
+    expect(result).toBe(false);
+    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+  });
+
   test('queues only valid same-domain links when crawl mode is enabled', () => {
     scraper.enqueueDiscoveredLinks(task, [
       'https://example.com/team',
       'https://example.com/team?ref=1',
+      'https://example.com/report.pdf',
       'https://other.com/skip',
       'mailto:test@example.com',
       null,
@@ -71,6 +84,7 @@ describe('PageScraper', () => {
 
     expect(task.queue).toContain('https://example.com/team');
     expect(task.queue.filter((url) => url === 'https://example.com/team')).toHaveLength(1);
+    expect(task.queue).not.toContain('https://example.com/report.pdf');
     expect(task.queue).not.toContain('https://other.com/skip');
   });
 });

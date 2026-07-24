@@ -26,8 +26,6 @@ export class TaskManager {
   }
 
   cleanupTask(taskId) {
-    const task = this.tasks.get(taskId);
-    task?.forceSave();
     this.removeTask(taskId);
   }
 
@@ -55,7 +53,7 @@ export class TaskManager {
     for (const port of ports) {
       try {
         port.postMessage(data);
-      } catch (error) {
+      } catch {
         inactive.push(port);
       }
     }

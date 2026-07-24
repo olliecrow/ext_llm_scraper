@@ -15,8 +15,9 @@ globalThis.chrome = {
     sendMessage: jest.fn((message, callback) => {
       if (typeof callback === 'function') {
         callback({ ok: true, echo: message });
+        return undefined;
       }
-      return undefined;
+      return Promise.resolve({ ok: true, echo: message });
     }),
     connect: jest.fn(() => ({
       postMessage: jest.fn(),
@@ -77,21 +78,6 @@ globalThis.Readability = jest.fn().mockImplementation(() => ({
     textContent: 'Test content',
   }),
 }));
-
-// Mock URL methods for blob handling
-globalThis.URL.createObjectURL = jest.fn(() => 'mocked-blob-url');
-globalThis.URL.revokeObjectURL = jest.fn();
-
-// Mock Blob constructor
-globalThis.Blob = jest.fn((content, options) => ({
-  size: content[0].length,
-  type: options?.type || 'text/plain',
-}));
-
-// Mock performance for content filtering
-globalThis.performance = {
-  now: jest.fn(() => Date.now()),
-};
 
 // Reset all mocks before each test
 beforeEach(() => {

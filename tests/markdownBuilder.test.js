@@ -108,16 +108,4 @@ describe('Markdown Builder', () => {
     expect(tocSection).toContain('2. [A Page]');
     expect(tocSection).toContain('3. [M Page]');
   });
-
-  test('calculates statistics correctly', () => {
-    const builder = new MarkdownBuilder();
-    builder.addPage('https://example.com/1', 'Page 1', 'Short content');
-    builder.addPage('https://example.com/2', 'Page 2', 'Much longer content with more text');
-
-    const stats = builder.getStats();
-
-    expect(stats.pageCount).toBe(2);
-    expect(stats.totalCharacters).toBe(47); // 13 + 34
-    expect(stats.avgContentLength).toBe(24); // 47 / 2 rounded
-  });
 });

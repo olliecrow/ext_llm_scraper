@@ -1,4 +1,4 @@
-import { normalizeUrl, extractDomain } from '../shared/utils.js';
+import { normalizeUrl, extractDomain, isValidUrl } from '../shared/utils.js';
 import { CONFIG } from '../shared/config.js';
 
 function clamp(value, min, max) {
@@ -9,14 +9,21 @@ export class TaskState {
   constructor(taskId, startingUrl, settings = {}) {
     this.taskId = taskId;
     this.startingUrl = normalizeUrl(startingUrl);
+    if (!isValidUrl(this.startingUrl)) {
+      throw new Error('Starting URL must use HTTP or HTTPS');
+    }
+
     this.startingDomain = extractDomain(this.startingUrl);
 
-    const requestedPages = Number(settings.maxPages ?? CONFIG.DEFAULTS.MAX_PAGES);
-    const requestedConcurrency = Number(settings.concurrency ?? CONFIG.DEFAULTS.CONCURRENCY);
+    const requestedPages = Math.trunc(Number(settings.maxPages ?? CONFIG.DEFAULTS.MAX_PAGES));
+    const requestedConcurrency = Math.trunc(
+      Number(settings.concurrency ?? CONFIG.DEFAULTS.CONCURRENCY)
+    );
     const requestedDelay = Number(settings.delay ?? CONFIG.DEFAULTS.DELAY_MS);
 
     this.settings = {
-      crawlMode: settings.crawlMode ?? CONFIG.DEFAULTS.CRAWL_MODE,
+      crawlMode:
+        typeof settings.crawlMode === 'boolean' ? settings.crawlMode : CONFIG.DEFAULTS.CRAWL_MODE,
       maxPages: clamp(
         Number.isFinite(requestedPages) ? requestedPages : CONFIG.DEFAULTS.MAX_PAGES,
         CONFIG.LIMITS.MIN_PAGES,
@@ -39,46 +46,6 @@ export class TaskState {
     this.isFinished = false;
 
     this.contentMap = new Map();
-
-    this.saveCallback = null;
-    this.saveTimer = null;
-    this.hasUnsavedChanges = false;
-  }
-
-  setSaveCallback(callback) {
-    this.saveCallback = typeof callback === 'function' ? callback : null;
-  }
-
-  markChanged() {
-    if (!this.saveCallback) {
-      return;
-    }
-
-    this.hasUnsavedChanges = true;
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
-    }
-
-    this.saveTimer = setTimeout(() => {
-      this.saveTimer = null;
-      this.hasUnsavedChanges = false;
-      this.saveCallback?.(this);
-    }, 2000);
-  }
-
-  forceSave() {
-    if (!this.saveCallback || !this.hasUnsavedChanges) {
-      return false;
-    }
-
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
-      this.saveTimer = null;
-    }
-
-    this.hasUnsavedChanges = false;
-    this.saveCallback(this);
-    return true;
   }
 
   canSchedule() {
@@ -87,14 +54,13 @@ export class TaskState {
     }
 
     if (this.processed + this.inProgress >= this.settings.maxPages) {
-      if (Array.isArray(this.queue) && this.queue.length > 0) {
+      if (this.queue.length > 0) {
         this.queue = [];
-        this.markChanged();
       }
       return false;
     }
 
-    if (!Array.isArray(this.queue) || this.queue.length === 0) {
+    if (this.queue.length === 0) {
       return false;
     }
 
@@ -102,10 +68,6 @@ export class TaskState {
   }
 
   getNextUrl() {
-    if (!Array.isArray(this.queue) || this.queue.length === 0) {
-      return null;
-    }
-
     return this.queue.shift() ?? null;
   }
 
@@ -139,7 +101,6 @@ export class TaskState {
       textContent: content?.textContent ?? '',
     });
 
-    this.markChanged();
     return true;
   }
 
@@ -163,50 +124,5 @@ export class TaskState {
   markAsFinished() {
     this.isFinishing = false;
     this.isFinished = true;
-  }
-
-  hasActiveScraping() {
-    return this.inProgress > 0;
-  }
-
-  toJSON() {
-    return {
-      taskId: this.taskId,
-      startingUrl: this.startingUrl,
-      startingDomain: this.startingDomain,
-      settings: { ...this.settings },
-      queue: [...this.queue],
-      visited: [...this.visited],
-      processed: this.processed,
-      contentMap: Array.from(this.contentMap.entries()),
-    };
-  }
-
-  static fromJSON(data) {
-    if (!data || typeof data !== 'object') {
-      return null;
-    }
-
-    const task = new TaskState(data.taskId, data.startingUrl, data.settings);
-
-    if (Array.isArray(data.queue) && data.queue.length > 0) {
-      task.queue = data.queue.map(normalizeUrl);
-    }
-
-    if (Array.isArray(data.visited) && data.visited.length > 0) {
-      task.visited = new Set(data.visited.map(normalizeUrl));
-    }
-
-    if (Array.isArray(data.contentMap)) {
-      task.contentMap = new Map(
-        data.contentMap.map(([url, content]) => [normalizeUrl(url), content])
-      );
-    }
-
-    if (typeof data.processed === 'number' && data.processed > 0) {
-      task.processed = Math.max(0, data.processed);
-    }
-
-    return task;
   }
 }
