@@ -34,12 +34,16 @@ export class TaskState {
         CONFIG.LIMITS.MIN_CONCURRENCY,
         CONFIG.LIMITS.MAX_CONCURRENCY
       ),
-      delay: Number.isFinite(requestedDelay) && requestedDelay > 0 ? requestedDelay : 0,
+      delay:
+        Number.isFinite(requestedDelay) && requestedDelay > 0
+          ? clamp(requestedDelay, 0, CONFIG.LIMITS.MAX_DELAY_MS)
+          : 0,
     };
 
     this.queue = [this.startingUrl];
     this.visited = new Set([this.startingUrl]);
     this.processed = 0;
+    this.attempts = 0;
     this.inProgress = 0;
     this.abort = false;
     this.isFinishing = false;
@@ -49,18 +53,15 @@ export class TaskState {
   }
 
   canSchedule() {
-    if (this.abort) {
+    if (this.abort || this.queue.length === 0) {
       return false;
     }
 
-    if (this.processed + this.inProgress >= this.settings.maxPages) {
-      if (this.queue.length > 0) {
-        this.queue = [];
-      }
+    if (this.contentMap.size + this.inProgress >= this.settings.maxPages) {
       return false;
     }
 
-    if (this.queue.length === 0) {
+    if (this.attempts >= this.settings.maxPages * 2) {
       return false;
     }
 
@@ -81,7 +82,8 @@ export class TaskState {
       return false;
     }
 
-    if (this.processed + this.inProgress + this.queue.length >= this.settings.maxPages) {
+    const backlogCap = Math.min(CONFIG.LIMITS.MAX_PAGES, this.settings.maxPages * 4);
+    if (this.queue.length >= backlogCap) {
       return false;
     }
 
@@ -100,6 +102,7 @@ export class TaskState {
       title: content?.title ?? url,
       textContent: content?.textContent ?? '',
     });
+    this.processed = this.contentMap.size;
 
     return true;
   }

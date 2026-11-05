@@ -59,8 +59,6 @@ document.getElementById('stopButton').addEventListener('click', async () => {
     const response = await chrome.runtime.sendMessage({ action: 'stop', tabId });
 
     if (response?.success) {
-      document.getElementById('startButton').disabled = false;
-      document.getElementById('stopButton').disabled = true;
       addDebugLog('Stop requested by user.');
     } else {
       addDebugLog(`Error stopping task: ${response?.error || 'Unknown background error'}`);

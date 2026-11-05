@@ -63,6 +63,28 @@ describe('popup controls', () => {
     expect(document.getElementById('stopButton').disabled).toBe(false);
   });
 
+  test('keeps start disabled after stop until the task is done', async () => {
+    sendMessageResponse({ success: true });
+    await loadPopup();
+
+    document.getElementById('startButton').click();
+    await flushPopupClick();
+    document.getElementById('stopButton').click();
+    await flushPopupClick();
+
+    expect(document.getElementById('startButton').disabled).toBe(true);
+    expect(document.getElementById('stopButton').disabled).toBe(false);
+    expect(document.getElementById('debugLog').textContent).toContain('Stop requested by user.');
+
+    const port = chrome.runtime.connect.mock.results.at(-1).value;
+    const listener = port.onMessage.addListener.mock.calls[0][0];
+    listener({ done: true, status: 'Stopped. Saved 1 page(s).' });
+
+    expect(document.getElementById('status').textContent).toBe('Stopped. Saved 1 page(s).');
+    expect(document.getElementById('startButton').disabled).toBe(false);
+    expect(document.getElementById('stopButton').disabled).toBe(true);
+  });
+
   test('keeps running state when stop fails', async () => {
     sendMessageResponse({ success: false, error: 'No active task' });
     await loadPopup();

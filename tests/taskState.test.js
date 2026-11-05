@@ -58,21 +58,57 @@ describe('TaskState', () => {
     expect(task.queue).toContain('https://example.com/about');
   });
 
-  test('respects max page limit when queuing links', () => {
-    const task = new TaskState(1, START_URL, { maxPages: 3 });
+  test('keeps a backlog past the saved-page cap', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 2 });
     expect(task.addToQueue('https://example.com/page-1')).toBe(true);
     expect(task.addToQueue('https://example.com/page-2')).toBe(true);
-    expect(task.addToQueue('https://example.com/page-3')).toBe(false);
+    expect(task.addToQueue('https://example.com/page-3')).toBe(true);
+    expect(task.addToQueue('https://example.com/page-4')).toBe(true);
+    expect(task.queue).toHaveLength(5);
   });
 
-  test('counts active pages when queuing links', () => {
-    const task = new TaskState(1, START_URL, { maxPages: 3 });
+  test('stops scheduling once enough pages are in progress', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 2 });
+    task.addToQueue('https://example.com/page-1');
+    task.addToQueue('https://example.com/page-2');
     task.getNextUrl();
-    task.inProgress = 1;
+    task.getNextUrl();
+    task.inProgress = 2;
 
-    expect(task.addToQueue('https://example.com/page-1')).toBe(true);
-    expect(task.addToQueue('https://example.com/page-2')).toBe(true);
-    expect(task.addToQueue('https://example.com/page-3')).toBe(false);
+    expect(task.queue.length).toBeGreaterThan(0);
+    expect(task.canSchedule()).toBe(false);
+  });
+
+  test('schedules a replacement after a failed attempt', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 2 });
+    task.addToQueue('https://example.com/next');
+    task.attempts = 1;
+
+    expect(task.contentMap.size).toBe(0);
+    expect(task.inProgress).toBe(0);
+    expect(task.canSchedule()).toBe(true);
+  });
+
+  test('clamps a huge delay to one minute', () => {
+    const task = new TaskState(1, START_URL, { delay: 999999999 });
+    expect(task.settings.delay).toBe(60000);
+  });
+
+  test('stops scheduling after twice as many attempts as the page cap', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 2 });
+    task.attempts = 4;
+
+    expect(task.canSchedule()).toBe(false);
+    expect(task.queue).toHaveLength(1);
+  });
+
+  test('refuses links once the backlog cap is full', () => {
+    const task = new TaskState(1, START_URL, { maxPages: 1 });
+
+    expect(task.addToQueue('https://example.com/a')).toBe(true);
+    expect(task.addToQueue('https://example.com/b')).toBe(true);
+    expect(task.addToQueue('https://example.com/c')).toBe(true);
+    expect(task.addToQueue('https://example.com/d')).toBe(false);
   });
 
   test('canSchedule requires queue capacity and respects abort flag', () => {

@@ -8,6 +8,7 @@ export const CONFIG = {
     MIN_PAGES: 1,
     MAX_CONCURRENCY: 15,
     MIN_CONCURRENCY: 1,
+    MAX_DELAY_MS: 60000,
   },
   DEFAULTS: {
     CONCURRENCY: 10,

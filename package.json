@@ -46,6 +46,7 @@
       "json"
     ],
     "collectCoverageFrom": [
+      "src/background/controller.js",
       "src/background/markdownBuilder.js",
       "src/background/scraper.js",
       "src/background/taskManager.js",

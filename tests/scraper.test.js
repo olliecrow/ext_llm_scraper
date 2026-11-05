@@ -15,6 +15,63 @@ describe('PageScraper', () => {
     task = createTask();
   });
 
+  test('reserves start offsets before any timer fires', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(1_000_000);
+    task.settings.delay = 1000;
+
+    const starts = [
+      scraper.reserveStart(task),
+      scraper.reserveStart(task),
+      scraper.reserveStart(task),
+    ];
+
+    expect(starts).toEqual([1_000_000, 1_001_000, 1_002_000]);
+    jest.useRealTimers();
+  });
+
+  test('does not count a failed tab as a saved page', async () => {
+    chrome.tabs.create.mockRejectedValueOnce(new Error('no tab'));
+
+    const result = await scraper.scrape(task, 'https://example.com/missing');
+
+    expect(result).toBe(false);
+    expect(task.processed).toBe(0);
+    expect(task.attempts).toBe(1);
+    expect(task.contentMap.size).toBe(0);
+  });
+
+  test('reports one saved page after a failed attempt', async () => {
+    chrome.tabs.create.mockRejectedValueOnce(new Error('no tab'));
+    await scraper.scrape(task, 'https://example.com/missing');
+    scraper.nextStart = 0;
+    chrome.scripting.executeScript.mockResolvedValueOnce([{ result: null }]).mockResolvedValueOnce([
+      {
+        result: {
+          title: 'Ok',
+          content: 'Body text',
+          links: [],
+        },
+      },
+    ]);
+    const statuses = [];
+    taskManager.sendStatus = (_id, data) => {
+      statuses.push(data);
+    };
+
+    const ok = await scraper.scrape(task, 'https://example.com/ok');
+
+    expect(ok).toBe(true);
+    expect(task.processed).toBe(1);
+    expect(task.attempts).toBe(2);
+    expect(statuses).toContainEqual(
+      expect.objectContaining({
+        status: 'Scraped 1 page(s)',
+        processed: 1,
+      })
+    );
+  });
+
   test('returns false for invalid URLs', async () => {
     const result = await scraper.scrape(task, 'not-a-url');
     expect(result).toBe(false);

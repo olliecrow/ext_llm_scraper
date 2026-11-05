@@ -53,6 +53,15 @@ export function extractPageContent() {
 export class PageScraper {
   constructor(taskManager) {
     this.taskManager = taskManager;
+    this.nextStart = 0;
+  }
+
+  reserveStart(task) {
+    const gap = task.settings.delay > 0 ? task.settings.delay : CONFIG.TIMEOUTS.BETWEEN_REQUESTS;
+    const now = Date.now();
+    const startAt = Math.max(now, this.nextStart ?? 0);
+    this.nextStart = startAt + gap;
+    return startAt;
   }
 
   async scrape(task, url) {
@@ -76,10 +85,19 @@ export class PageScraper {
       return false;
     }
 
+    const now = Date.now();
+    const startAt = this.reserveStart(task);
     let tab = null;
     task.inProgress += 1;
 
     try {
+      if (startAt > now) {
+        await delay(startAt - now);
+      }
+      if (task.abort) {
+        return false;
+      }
+
       tab = await chrome.tabs.create({ url, active: false });
       if (!tab || typeof tab.id !== 'number') {
         throw new Error('Failed to create background tab');
@@ -104,12 +122,13 @@ export class PageScraper {
 
       this.enqueueDiscoveredLinks(task, content.links);
 
+      const saved = task.contentMap.size;
       this.taskManager.sendStatus(task.taskId, {
-        status: `Scraped ${task.processed + 1} page(s)`,
-        processed: task.processed + 1,
+        status: `Scraped ${saved} page(s)`,
+        processed: saved,
         total: Math.min(
           task.settings.maxPages,
-          task.processed + task.queue.length + task.inProgress
+          saved + task.queue.length + Math.max(0, task.inProgress - 1)
         ),
         debug: `Captured ${url}`,
       });
@@ -123,16 +142,10 @@ export class PageScraper {
       return false;
     } finally {
       task.inProgress = Math.max(0, task.inProgress - 1);
-      task.processed += 1;
+      task.attempts += 1;
 
       if (tab?.id !== undefined) {
         await chrome.tabs.remove(tab.id).catch(() => undefined);
-      }
-
-      if (task.settings.delay > 0) {
-        await delay(task.settings.delay);
-      } else if (CONFIG.TIMEOUTS.BETWEEN_REQUESTS > 0) {
-        await delay(CONFIG.TIMEOUTS.BETWEEN_REQUESTS);
       }
     }
   }
