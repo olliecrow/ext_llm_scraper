@@ -263,6 +263,60 @@ describe('PageScraper', () => {
     );
   });
 
+  test('decodes a streamed Latin-1 response using the header charset', async () => {
+    const text = 'Café déjà vu. '.repeat(30);
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html; charset="ISO-8859-1"' },
+      body: new Response(Buffer.from(`<article>${text}</article>`, 'latin1')).body,
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async ({ html }) => {
+      assert.ok(html.includes(text));
+      return { url: 'https://example.com/', title: 'Latin', content: text, links: [] };
+    });
+    assert.equal(await scraper.scrape(task, 'https://example.com/'), true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.equal(task.contentMap.get('https://example.com/').textContent, text);
+  });
+
+  for (const type of ['', 'text/html']) {
+    test(`uses the browser encoding rules for meta charset with type ${type}`, async () => {
+      globalThis.fetch = mock.fn(async (url) => ({
+        url,
+        headers: { get: () => type },
+        body: new Response(
+          Buffer.from(
+            `<meta charset="iso-8859-1"><article>${'Café '.repeat(40)}</article>`,
+            'latin1'
+          )
+        ).body,
+      }));
+      chrome.runtime.sendMessage.mock.mockImplementation(async ({ html }) => ({
+        url: 'https://example.com/',
+        title: 'Static',
+        content: html,
+        links: [],
+      }));
+      const text = 'Café '.repeat(40);
+      queueExecuteScript(chrome, [
+        [{ result: null }],
+        [
+          {
+            result: {
+              url: 'https://example.com/',
+              title: 'Latin meta',
+              content: text,
+              links: [],
+            },
+          },
+        ],
+      ]);
+      assert.equal(await scraper.scrape(task, 'https://example.com/'), true);
+      assert.equal(chrome.tabs.create.mock.callCount(), 1);
+      assert.equal(task.contentMap.get('https://example.com/').textContent, text);
+    });
+  }
+
   test('opens a tab when the fetched body is twenty characters', async () => {
     globalThis.fetch = mock.fn(async () => ({
       url: 'https://example.com/short',

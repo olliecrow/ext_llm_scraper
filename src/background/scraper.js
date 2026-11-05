@@ -322,6 +322,9 @@ export class PageScraper {
       }
 
       const contentType = response.headers?.get?.('content-type') || '';
+      if (!contentType.trim()) {
+        return null;
+      }
       if (!PAGE_CONTENT_TYPE.test(contentType)) {
         this.taskManager.sendStatus(task.taskId, {
           status: 'Skipping non-HTML resource',
@@ -330,7 +333,13 @@ export class PageScraper {
         return false;
       }
 
-      html = await readCappedText(response, STATIC_TEXT_LIMIT);
+      const charset = /;\s*charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType)?.[1];
+      html = await readCappedText(response, STATIC_TEXT_LIMIT, charset);
+      // Let Chrome apply HTML's encoding rules (including meta http-equiv)
+      // rather than parsing a potentially misdecoded document as UTF-8.
+      if (!charset && /<meta\b[^>]*\bcharset\s*=/i.test(html)) {
+        return null;
+      }
     } catch (error) {
       if (task.abort) {
         return false;
@@ -387,14 +396,14 @@ export class PageScraper {
   }
 }
 
-async function readCappedText(response, limit) {
+async function readCappedText(response, limit, charset) {
   const reader = response.body?.getReader?.();
   if (!reader) {
     const text = typeof response.text === 'function' ? await response.text() : '';
     return String(text).slice(0, limit);
   }
 
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder(charset || 'utf-8');
   let text = '';
   try {
     while (text.length < limit) {
