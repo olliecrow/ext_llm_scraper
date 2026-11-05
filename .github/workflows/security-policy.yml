@@ -38,7 +38,13 @@ jobs:
           install -m 0755 gitleaks "$RUNNER_TEMP/gitleaks"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Scan pushed/PR commit range with gitleaks
+      - name: Self-test security scanners
+        run: bash scripts/security/selftest.sh
+
+      # One range policy for every scanner. An empty, all-zero, or missing
+      # base (a scheduled run, a new branch, or a rewritten history) scans
+      # every commit in the head.
+      - name: Scan pushed/PR commits with gitleaks and the text policy
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -46,72 +52,17 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
-          elif [[ -z "${PUSH_BEFORE_SHA}" || "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
-            range="${GITHUB_SHA}^!"
+            base="${PR_BASE_SHA}"
+            head="${PR_HEAD_SHA}"
           else
-            range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+            base="${PUSH_BEFORE_SHA}"
+            head="${GITHUB_SHA}"
           fi
-          # Also scan what a merge commit adds against its first parent.
-          gitleaks git --redact --verbose --config .gitleaks.toml \
-            --log-opts="--diff-merges=first-parent ${range}"
-
-      - name: Self-test sensitive text policy patterns
-        run: |
-          set -euo pipefail
-          tmp_ok="$(mktemp)"
-          tmp_bad="$(mktemp)"
-          printf 'docs: keep /Users/YOU as placeholder only\n' > "${tmp_ok}"
-          printf 'fix: %s=%s\n' "token" "abc123456789XYZ" > "${tmp_bad}"
-          bash scripts/security/check-sensitive-text.sh --context=policy-selftest "${tmp_ok}"
-          if bash scripts/security/check-sensitive-text.sh --context=policy-selftest "${tmp_bad}"; then
-            echo "expected policy self-test failure did not occur" >&2
-            exit 1
-          fi
-
-      - name: Self-test sensitive text policy without ripgrep
-        run: |
-          set -euo pipefail
-          tmp_bad="$(mktemp)"
-          printf 'fix: %s=%s\n' "token" "abc123456789XYZ" > "${tmp_bad}"
-          if PATH="/usr/bin:/bin" bash scripts/security/check-sensitive-text.sh --context=policy-fallback-selftest "${tmp_bad}"; then
-            echo "expected fallback policy self-test failure did not occur" >&2
-            exit 1
-          fi
-
-      - name: Check pushed/PR commit messages and added lines
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            bash scripts/security/check-push-range.sh --from "${PR_BASE_SHA}" --to "${PR_HEAD_SHA}"
-          elif [[ -z "${PUSH_BEFORE_SHA}" || "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
-            bash scripts/security/check-push-range.sh --from "0000000000000000000000000000000000000000" --to "${GITHUB_SHA}"
-          else
-            bash scripts/security/check-push-range.sh --from "${PUSH_BEFORE_SHA}" --to "${GITHUB_SHA}"
-          fi
-
-      - name: Check commit messages for policy violations
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
-          elif [[ -z "${PUSH_BEFORE_SHA}" || "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
-            range="${GITHUB_SHA}^!"
-          else
-            range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
-          fi
-
-          temp_file="$(mktemp)"
-          git log --format='%H%n%s%n%b%n' "${range}" > "${temp_file}"
-          bash scripts/security/check-sensitive-text.sh --context=commit-message "${temp_file}"
+          commits_file="${RUNNER_TEMP}/push-commits.txt"
+          bash scripts/security/check-push-range.sh --list --from "${base}" --to "${head}" > "${commits_file}"
+          echo "commits to scan: $(wc -l < "${commits_file}")"
+          bash scripts/security/gitleaks-commits.sh "${commits_file}"
+          bash scripts/security/check-push-range.sh --from "${base}" --to "${head}"
 
       - name: Check pull request title/body for policy violations
         if: github.event_name == 'pull_request'
