@@ -358,6 +358,21 @@ describe('extractPageContent', () => {
     });
   });
 
+  test('runs inside a page without module helpers', () => {
+    withDom(
+      `
+      <a href="https://example.com/a">A</a>
+      <a href="mailto:test@example.com">Mail</a>
+    `,
+      () => {
+        const isolated = new Function(`return (${extractPageContent.toString()})`)();
+        const result = isolated();
+        assert.equal(result.title, 'Original title');
+        assert.deepEqual(result.links, ['https://example.com/a']);
+      }
+    );
+  });
+
   test('uses body text as the last content fallback', () => {
     withDom('<section>No main content</section>', () => {
       document.body.innerText = 'Body text fallback';

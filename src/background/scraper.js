@@ -9,6 +9,18 @@ export function extractPageContent(
   rootDocument = document,
   pageUrl = rootDocument.location?.href || ''
 ) {
+  function absoluteHttpUrl(href, baseUrl) {
+    if (!href) {
+      return '';
+    }
+    try {
+      const absolute = new URL(href, baseUrl || undefined);
+      return ['http:', 'https:'].includes(absolute.protocol) ? absolute.href : '';
+    } catch {
+      return '';
+    }
+  }
+
   const response = {
     url: pageUrl,
     title: rootDocument.title || pageUrl,
@@ -29,7 +41,7 @@ export function extractPageContent(
     console.warn('Readability extraction failed:', error.message);
   }
 
-  if (!response.content || response.content.length < STATIC_TEXT_MINIMUM) {
+  if (!response.content || response.content.length < 100) {
     const candidates = ['article', 'main', '[role="main"]', '.content', '.post'];
     for (const selector of candidates) {
       const element = rootDocument.querySelector(selector);
@@ -51,18 +63,6 @@ export function extractPageContent(
     .filter(Boolean);
 
   return response;
-}
-
-function absoluteHttpUrl(href, pageUrl) {
-  if (!href) {
-    return '';
-  }
-  try {
-    const absolute = new URL(href, pageUrl || undefined);
-    return ['http:', 'https:'].includes(absolute.protocol) ? absolute.href : '';
-  } catch {
-    return '';
-  }
 }
 
 export class PageScraper {
