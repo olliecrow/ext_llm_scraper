@@ -5,6 +5,7 @@ import { PageScraper, extractPageContent } from '../src/background/scraper.js';
 import { TaskManager } from '../src/background/taskManager.js';
 import { TaskState } from '../src/background/taskState.js';
 import { createChromeMock } from './chrome-mock.js';
+import { CONFIG } from '../src/shared/config.js';
 
 const createTask = () =>
   new TaskState(1, 'https://example.com', { maxPages: 5, concurrency: 1, crawlMode: true });
@@ -292,6 +293,123 @@ describe('PageScraper', () => {
     assert.equal(result, false);
     assert.equal(chrome.tabs.create.mock.callCount(), 0);
     assert.equal(task.contentMap.size, 0);
+  });
+
+  test('stop ends a fetch whose headers never arrive', async () => {
+    task.addContent('https://example.com/saved', { title: 'Saved', textContent: 'kept' });
+    globalThis.fetch = mock.fn(
+      (_url, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason));
+        })
+    );
+
+    const run = scraper.scrape(task, 'https://example.com/stalled');
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
+    assert.equal(task.inProgress, 1);
+    task.stop();
+
+    assert.equal(await run, false);
+    assert.equal(task.inProgress, 0);
+    assert.equal(task.contentMap.size, 1);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+  });
+
+  test('stop ends a body read that stalls after the first chunk', async () => {
+    globalThis.fetch = mock.fn(async (url, { signal }) => {
+      let sent = false;
+      return {
+        url,
+        headers: { get: () => 'text/html' },
+        body: {
+          getReader: () => ({
+            read: () => {
+              if (!sent) {
+                sent = true;
+                return Promise.resolve({ done: false, value: new TextEncoder().encode('<p>') });
+              }
+              return new Promise((_resolve, reject) => {
+                signal.addEventListener('abort', () => reject(signal.reason));
+              });
+            },
+            cancel: () => Promise.resolve(),
+          }),
+        },
+      };
+    });
+
+    const run = scraper.scrape(task, 'https://example.com/slow-body');
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
+    task.stop();
+
+    assert.equal(await run, false);
+    assert.equal(task.inProgress, 0);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+  });
+
+  test('stop ends the wait for a reserved start', async () => {
+    task.settings.delay = 60000;
+    scraper.nextStart = Date.now() + 60000;
+    const run = scraper.scrape(task, 'https://example.com/later');
+    task.stop();
+
+    assert.equal(await run, false);
+    assert.equal(globalThis.fetch.mock.callCount(), 0);
+  });
+
+  test('stop ends the wait for a tab to load', async () => {
+    chrome.tabs.get.mock.mockImplementation((tabId, callback) => {
+      callback({ id: tabId, status: 'loading' });
+    });
+    const run = scraper.scrape(task, 'https://example.com/tab');
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
+    task.stop();
+
+    assert.equal(await run, false);
+    assert.equal(chrome.scripting.executeScript.mock.callCount(), 0);
+    assert.deepEqual(chrome.tabs.remove.mock.calls[0].arguments, [1]);
+  });
+
+  test('a fetch past its deadline falls back to a tab', async () => {
+    const original = CONFIG.TIMEOUTS.STATIC_FETCH;
+    CONFIG.TIMEOUTS.STATIC_FETCH = 10;
+    // AbortSignal.timeout does not keep Node's event loop alive.
+    const keepAlive = setTimeout(() => undefined, 5000);
+    try {
+      globalThis.fetch = mock.fn(
+        (_url, { signal }) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason));
+          })
+      );
+      queueExecuteScript(chrome, [
+        [{ result: null }],
+        [
+          {
+            result: {
+              url: 'https://example.com/slow',
+              title: 'Slow',
+              content: 'Tab body',
+              links: [],
+            },
+          },
+        ],
+      ]);
+
+      const result = await scraper.scrape(task, 'https://example.com/slow');
+
+      assert.equal(result, true);
+      assert.equal(chrome.tabs.create.mock.callCount(), 1);
+    } finally {
+      clearTimeout(keepAlive);
+      CONFIG.TIMEOUTS.STATIC_FETCH = original;
+    }
   });
 
   test('logs when Readability is not injected', async () => {

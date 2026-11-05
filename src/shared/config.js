@@ -1,6 +1,7 @@
 export const CONFIG = {
   TIMEOUTS: {
     TAB_LOAD: 12000,
+    STATIC_FETCH: 15000,
     BETWEEN_REQUESTS: 150,
   },
   LIMITS: {

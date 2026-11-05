@@ -46,6 +46,7 @@ export class TaskState {
     this.attempts = 0;
     this.inProgress = 0;
     this.abort = false;
+    this.abortController = new AbortController();
     this.isFinishing = false;
     this.isFinished = false;
 
@@ -66,6 +67,17 @@ export class TaskState {
     }
 
     return true;
+  }
+
+  get signal() {
+    return this.abortController.signal;
+  }
+
+  // Stop scheduling and cancel waits, fetches, and body reads in flight.
+  stop() {
+    this.abort = true;
+    this.queue = [];
+    this.abortController.abort();
   }
 
   getNextUrl() {

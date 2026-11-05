@@ -179,8 +179,7 @@ export function installBackground(chromeApi, services = {}) {
     if (message.action === 'stop') {
       const task = taskManager.getTask(message.tabId);
       if (task) {
-        task.abort = true;
-        task.queue = [];
+        task.stop();
         taskManager.sendStatus(task.taskId, { status: 'Stopping task...' });
         sendResponse({ success: true });
       } else {

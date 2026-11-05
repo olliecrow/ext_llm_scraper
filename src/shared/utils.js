@@ -217,12 +217,25 @@ export function extractDomain(url) {
 }
 
 /**
- * Creates a delay promise
- * @param {number} ms - Milliseconds to delay
- * @returns {Promise} - Promise that resolves after delay
+ * Waits for ms milliseconds, or until the signal aborts.
+ * @param {number} ms
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<void>}
  */
-export function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function delay(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const finish = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener('abort', finish, { once: true });
+  });
 }
 
 /**

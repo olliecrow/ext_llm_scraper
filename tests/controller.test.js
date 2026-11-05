@@ -107,6 +107,7 @@ describe('background controller', () => {
     const stopped = dispatch(listener, { action: 'stop', tabId: 7 });
     assert.deepEqual(stopped, { success: true });
     assert.notEqual(taskManager.getTask(7), null);
+    assert.equal(taskManager.getTask(7).signal.aborted, true);
     assert.equal(downloads.length, 0);
 
     releaseSecond();

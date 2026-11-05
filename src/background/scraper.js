@@ -107,7 +107,7 @@ export class PageScraper {
 
     try {
       if (startAt > now) {
-        await delay(startAt - now);
+        await delay(startAt - now, task.signal);
       }
       if (task.abort) {
         return false;
@@ -120,12 +120,15 @@ export class PageScraper {
 
       let content = fetched;
       if (!content) {
+        if (task.abort) {
+          return false;
+        }
         tab = await chrome.tabs.create({ url, active: false });
         if (!tab || typeof tab.id !== 'number') {
           throw new Error('Failed to create background tab');
         }
 
-        await this.waitForTabLoad(tab.id);
+        await this.waitForTabLoad(tab.id, task.signal);
         if (task.abort) {
           return false;
         }
@@ -205,9 +208,18 @@ export class PageScraper {
     }
   }
 
-  waitForTabLoad(tabId) {
+  waitForTabLoad(tabId, signal) {
     return new Promise((resolve, reject) => {
       let completed = false;
+
+      // Stop ends the wait. The caller checks task.abort next.
+      const handleAbort = () => {
+        if (!completed) {
+          completed = true;
+          cleanup();
+          resolve();
+        }
+      };
 
       const timer = setTimeout(() => {
         if (!completed) {
@@ -228,8 +240,14 @@ export class PageScraper {
       const cleanup = () => {
         clearTimeout(timer);
         chrome.tabs.onUpdated.removeListener(handleUpdate);
+        signal?.removeEventListener('abort', handleAbort);
       };
 
+      if (signal?.aborted) {
+        handleAbort();
+        return;
+      }
+      signal?.addEventListener('abort', handleAbort, { once: true });
       chrome.tabs.onUpdated.addListener(handleUpdate);
 
       chrome.tabs.get(tabId, (tab) => {
@@ -245,45 +263,65 @@ export class PageScraper {
     });
   }
 
+  // Returns parsed content, null to fall back to a tab, or false to skip the URL.
   async fetchStaticPage(task, url) {
+    // One signal covers the headers and the body. Stop or the deadline aborts both.
+    const signal = AbortSignal.any([
+      task.signal,
+      AbortSignal.timeout(CONFIG.TIMEOUTS.STATIC_FETCH),
+    ]);
     let response;
+    let html;
     try {
       response = await fetch(url, {
         credentials: 'include',
         redirect: 'follow',
         cache: 'no-store',
+        signal,
       });
+
+      if (!isSameSite(url, response.url)) {
+        this.taskManager.sendStatus(task.taskId, {
+          status: 'Skipping redirect off this site',
+          debug: `Redirect left the site: ${response.url}`,
+        });
+        return false;
+      }
+
+      const contentType = response.headers?.get?.('content-type') || '';
+      if (!/html|text/i.test(contentType)) {
+        this.taskManager.sendStatus(task.taskId, {
+          status: 'Skipping non-HTML resource',
+          debug: `Ignored by content type: ${url}`,
+        });
+        return false;
+      }
+
+      html = await readCappedText(response, STATIC_TEXT_LIMIT);
     } catch (error) {
+      if (task.abort) {
+        return false;
+      }
       this.taskManager.sendStatus(task.taskId, {
         debug: `Static fetch failed, opening a tab: ${error.message}`,
       });
       return null;
     }
 
-    if (!isSameSite(url, response.url)) {
-      this.taskManager.sendStatus(task.taskId, {
-        status: 'Skipping redirect off this site',
-        debug: `Redirect left the site: ${response.url}`,
+    let parsed;
+    try {
+      await ensureOffscreenDocument(chrome);
+      parsed = await chrome.runtime.sendMessage({
+        action: 'parse-html',
+        html,
+        url: response.url,
       });
-      return false;
-    }
-
-    const contentType = response.headers?.get?.('content-type') || '';
-    if (!/html|text/i.test(contentType)) {
+    } catch (error) {
       this.taskManager.sendStatus(task.taskId, {
-        status: 'Skipping non-HTML resource',
-        debug: `Ignored by content type: ${url}`,
+        debug: `Static parse failed, opening a tab: ${error.message}`,
       });
-      return false;
+      return null;
     }
-
-    const html = await readCappedText(response, STATIC_TEXT_LIMIT);
-    await ensureOffscreenDocument(chrome);
-    const parsed = await chrome.runtime.sendMessage({
-      action: 'parse-html',
-      html,
-      url: response.url,
-    });
     if (!parsed || parsed.error || typeof parsed.content !== 'string') {
       return null;
     }
