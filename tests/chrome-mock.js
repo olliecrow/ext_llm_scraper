@@ -1,9 +1,15 @@
 import { mock } from 'node:test';
 
 export function createChromeMock() {
+  const offscreenUrl = 'chrome-extension://ext-test/src/offscreen/offscreen.html';
+  let offscreenOpen = false;
   return {
     runtime: {
       id: 'ext-test',
+      getURL: (path) => `chrome-extension://ext-test/${path}`,
+      getContexts: mock.fn(async () =>
+        offscreenOpen ? [{ contextType: 'OFFSCREEN_DOCUMENT', documentUrl: offscreenUrl }] : []
+      ),
       onMessage: {
         addListener: mock.fn(),
         removeListener: mock.fn(),
@@ -77,9 +83,21 @@ export function createChromeMock() {
         callback(true);
       }),
     },
+    // Matches Chrome: one document at most, and closing needs an open document.
     offscreen: {
-      createDocument: mock.fn(() => Promise.resolve()),
-      closeDocument: mock.fn(() => Promise.resolve()),
+      createDocument: mock.fn(async () => {
+        if (offscreenOpen) {
+          throw new Error('Only a single offscreen document may be created.');
+        }
+        offscreenOpen = true;
+      }),
+      closeDocument: mock.fn(async () => {
+        if (!offscreenOpen) {
+          throw new Error('No current offscreen document.');
+        }
+        offscreenOpen = false;
+      }),
+      isOpen: () => offscreenOpen,
     },
   };
 }

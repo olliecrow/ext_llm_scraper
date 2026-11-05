@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { installBackground } from '../src/background/controller.js';
 import { TaskManager } from '../src/background/taskManager.js';
 import { createChromeMock } from './chrome-mock.js';
+import { ensureOffscreenDocument } from '../src/background/offscreenDoc.js';
 
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -309,32 +310,50 @@ describe('background controller', () => {
     assert.ok(chrome.offscreen.closeDocument.mock.callCount() >= 1);
   });
 
-  test('recreates the offscreen document when one is already open', async () => {
-    chrome.offscreen.createDocument.mock.mockImplementationOnce(
-      () => Promise.reject(new Error('Only a single offscreen document may be created')),
-      0
-    );
+  test('keeps the offscreen document open until the last task finishes', async () => {
+    let releaseSlow;
     const taskManager = new TaskManager();
     installBackground(chrome, {
       taskManager,
       scraper: {
         async scrape(task, url) {
+          await ensureOffscreenDocument(chrome);
+          if (url.endsWith('/slow')) {
+            await new Promise((resolve) => {
+              releaseSlow = resolve;
+            });
+          }
           task.addContent(url, { title: 'T', textContent: 'body' });
           return true;
         },
       },
     });
     const listener = lastCallArg(chrome.runtime.onMessage.addListener);
+    const settings = { maxPages: 1, concurrency: 1, crawlMode: false };
     dispatch(listener, {
       action: 'start',
-      tabId: 9,
-      startingUrl: 'https://example.com/retry',
-      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+      tabId: 20,
+      startingUrl: 'https://example.com/slow',
+      settings,
+    });
+    dispatch(listener, {
+      action: 'start',
+      tabId: 21,
+      startingUrl: 'https://example.com/fast',
+      settings,
     });
 
-    await waitFor(() => taskManager.getTask(9) === null);
-    assert.equal(chrome.offscreen.createDocument.mock.callCount(), 2);
-    assert.equal(downloads[0].url.startsWith('blob:'), true);
+    await waitFor(() => taskManager.getTask(21) === null);
+    assert.notEqual(taskManager.getTask(20), null);
+    assert.equal(chrome.offscreen.isOpen(), true);
+    assert.equal(chrome.offscreen.closeDocument.mock.callCount(), 0);
+
+    releaseSlow();
+    await waitFor(() => taskManager.getTask(20) === null);
+    await waitFor(() => !chrome.offscreen.isOpen());
+    assert.equal(chrome.offscreen.createDocument.mock.callCount(), 1);
+    assert.equal(chrome.offscreen.closeDocument.mock.callCount(), 1);
+    assert.equal(downloads.length, 2);
   });
 
   test('removes the task when the download and offscreen cleanup both fail', async () => {

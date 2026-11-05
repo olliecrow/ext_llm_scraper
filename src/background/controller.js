@@ -2,7 +2,7 @@ import { TaskManager } from './taskManager.js';
 import { PageScraper } from './scraper.js';
 import { MarkdownBuilder } from './markdownBuilder.js';
 import { generateFilename } from '../shared/utils.js';
-import { ensureOffscreenDocument } from './offscreenDoc.js';
+import { ensureOffscreenDocument, holdOffscreenDocument } from './offscreenDoc.js';
 
 let downloadChain = Promise.resolve();
 
@@ -10,7 +10,17 @@ export function installBackground(chromeApi, services = {}) {
   const taskManager = services.taskManager ?? new TaskManager();
   const scraper = services.scraper ?? new PageScraper(taskManager);
 
-  async function processTask(task) {
+  function processTask(task) {
+    return holdOffscreenDocument(chromeApi, async () => {
+      try {
+        await crawl(task);
+      } finally {
+        await finishTask(task);
+      }
+    });
+  }
+
+  async function crawl(task) {
     const active = new Set();
 
     while (!task.abort) {
@@ -44,10 +54,6 @@ export function installBackground(chromeApi, services = {}) {
     }
 
     await Promise.allSettled(active);
-
-    if (task.inProgress === 0 && (task.abort || task.isComplete() || !task.canSchedule())) {
-      await finishTask(task);
-    }
   }
 
   async function finishTask(task) {
@@ -60,15 +66,6 @@ export function installBackground(chromeApi, services = {}) {
     } finally {
       task.markAsFinished();
       taskManager.cleanupTask(task.taskId);
-      await closeOffscreen();
-    }
-  }
-
-  async function closeOffscreen() {
-    try {
-      await chromeApi.offscreen.closeDocument();
-    } catch {
-      // No document was open.
     }
   }
 
@@ -105,16 +102,10 @@ export function installBackground(chromeApi, services = {}) {
     }
   }
 
-  async function openOffscreen() {
-    await ensureOffscreenDocument(chromeApi);
-  }
-
   async function performDownload(task, content) {
     const filename = generateFilename(task.startingDomain);
-    let opened = false;
     try {
-      await openOffscreen();
-      opened = true;
+      await ensureOffscreenDocument(chromeApi);
       const response = await chromeApi.runtime.sendMessage({
         action: 'create-download-url',
         content,
@@ -138,10 +129,6 @@ export function installBackground(chromeApi, services = {}) {
       return { ok: true, filename };
     } catch (error) {
       return { ok: false, error: error?.message || 'Download failed' };
-    } finally {
-      if (opened) {
-        await closeOffscreen();
-      }
     }
   }
 
