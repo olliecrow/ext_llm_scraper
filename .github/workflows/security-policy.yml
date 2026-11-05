@@ -52,7 +52,9 @@ jobs:
           else
             range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
           fi
-          gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="${range}"
+          # Also scan what a merge commit adds against its first parent.
+          gitleaks git --redact --verbose --config .gitleaks.toml \
+            --log-opts="--diff-merges=first-parent ${range}"
 
       - name: Self-test sensitive text policy patterns
         run: |
@@ -75,6 +77,21 @@ jobs:
           if PATH="/usr/bin:/bin" bash scripts/security/check-sensitive-text.sh --context=policy-fallback-selftest "${tmp_bad}"; then
             echo "expected fallback policy self-test failure did not occur" >&2
             exit 1
+          fi
+
+      - name: Check pushed/PR commit messages and added lines
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/security/check-push-range.sh --from "${PR_BASE_SHA}" --to "${PR_HEAD_SHA}"
+          elif [[ -z "${PUSH_BEFORE_SHA}" || "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
+            bash scripts/security/check-push-range.sh --from "0000000000000000000000000000000000000000" --to "${GITHUB_SHA}"
+          else
+            bash scripts/security/check-push-range.sh --from "${PUSH_BEFORE_SHA}" --to "${GITHUB_SHA}"
           fi
 
       - name: Check commit messages for policy violations
