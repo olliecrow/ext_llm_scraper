@@ -490,6 +490,29 @@ describe('PageScraper', () => {
     assert.equal(task.contentMap.size, 0);
   });
 
+  test('renders a hash route in a tab instead of fetching the app shell', async () => {
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [
+        {
+          result: {
+            url: 'https://example.com/#/about',
+            title: 'About route',
+            content: 'Rendered route',
+            links: [],
+          },
+        },
+      ],
+    ]);
+
+    const result = await scraper.scrape(task, 'https://example.com/#/about');
+
+    assert.equal(result, true);
+    assert.equal(globalThis.fetch.mock.callCount(), 0);
+    assert.equal(chrome.tabs.create.mock.callCount(), 1);
+    assert.equal(task.contentMap.get('https://example.com/#/about').title, 'About route');
+  });
+
   test('logs when Readability is not injected', async () => {
     const statuses = [];
     taskManager.sendStatus = (_id, data) => {

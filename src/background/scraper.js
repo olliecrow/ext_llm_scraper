@@ -127,7 +127,9 @@ export class PageScraper {
         return false;
       }
 
-      const fetched = await this.fetchStaticPage(task, url);
+      // A server never sees a hash route, so a fetch returns only the app
+      // shell. Normalized URLs keep a hash only for such routes.
+      const fetched = new URL(url).hash ? null : await this.fetchStaticPage(task, url);
       if (fetched === false) {
         return false;
       }
