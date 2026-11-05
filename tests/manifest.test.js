@@ -13,7 +13,7 @@ describe('extension manifest', () => {
       manifest.content_security_policy.extension_pages,
       "script-src 'self'; object-src 'none'; base-uri 'none'"
     );
-    assert.deepEqual(manifest.permissions, ['activeTab', 'downloads', 'scripting']);
+    assert.deepEqual(manifest.permissions, ['activeTab', 'downloads', 'offscreen', 'scripting']);
     assert.deepEqual(manifest.optional_host_permissions, ['http://*/*', 'https://*/*']);
     assert.equal(manifest.host_permissions, undefined);
     assert.equal(Object.hasOwn(manifest, 'web_accessible_resources'), false);

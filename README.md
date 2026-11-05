@@ -56,8 +56,8 @@ The generated Markdown includes.
 ## Privacy and permissions
 
 - Scraping and Markdown generation happen locally in the browser. The extension has no analytics, remote collection, credentials, or hidden services.
-- Permissions are `activeTab`, `downloads`, and `scripting`. Host access is optional. Pressing Start requests the current site and its `www` pair over http and https.
-- `downloads` saves the Markdown file. `scripting` reads the page. `activeTab` lets the popup see the tab you opened it from.
+- Permissions are `activeTab`, `downloads`, `offscreen`, and `scripting`. Host access is optional. Pressing Start requests the current site and its `www` pair over http and https.
+- `downloads` saves the Markdown file. `offscreen` parses fetched pages and builds the file in a hidden extension page. `scripting` reads a page that needs a tab. `activeTab` lets the popup see the tab you opened it from.
 - Stop saves the pages already captured.
 - If the service worker restarts, the in-memory crawl is lost and the current tab can stay open. Start the crawl again.
 

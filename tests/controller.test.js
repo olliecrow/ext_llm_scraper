@@ -337,6 +337,47 @@ describe('background controller', () => {
     assert.equal(downloads[0].url.startsWith('blob:'), true);
   });
 
+  test('removes the task when the download and offscreen cleanup both fail', async () => {
+    chrome.runtime.sendMessage.mock.mockImplementation(async () => {
+      throw new Error('offscreen unavailable');
+    });
+    chrome.offscreen.closeDocument.mock.mockImplementation(() => {
+      throw new TypeError('closeDocument failed');
+    });
+    const taskManager = new TaskManager();
+    const statuses = [];
+    taskManager.sendStatus = (_taskId, data) => {
+      statuses.push(data);
+    };
+    installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task, url) {
+          task.addContent(url, { title: 'T', textContent: 'body' });
+          return true;
+        },
+      },
+    });
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
+    const start = {
+      action: 'start',
+      tabId: 10,
+      startingUrl: 'https://example.com/again',
+      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+    };
+    dispatch(listener, start);
+
+    await waitFor(() => taskManager.getTask(10) === null);
+    assert.equal(
+      includesPartial(statuses, {
+        done: true,
+        status: 'Scraping finished, but the download failed',
+      }),
+      true
+    );
+    assert.deepEqual(dispatch(listener, start), { success: true });
+  });
+
   test('registers listeners when the service worker loads', async () => {
     const workerChrome = createChromeMock();
     globalThis.chrome = workerChrome;

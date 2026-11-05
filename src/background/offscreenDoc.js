@@ -1,7 +1,7 @@
 export const OFFSCREEN_OPTIONS = {
   url: 'src/offscreen/offscreen.html',
-  reasons: ['BLOBS'],
-  justification: 'Create a local blob URL so the Markdown download is not limited by a data URL.',
+  reasons: ['DOM_PARSER', 'BLOBS'],
+  justification: 'Parse fetched pages and create a local blob URL for the Markdown download.',
 };
 
 export async function ensureOffscreenDocument(chromeApi) {

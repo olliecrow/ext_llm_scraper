@@ -55,7 +55,24 @@ export function installBackground(chromeApi, services = {}) {
       return;
     }
     task.isFinishing = true;
+    try {
+      await saveResults(task);
+    } finally {
+      task.markAsFinished();
+      taskManager.cleanupTask(task.taskId);
+      await closeOffscreen();
+    }
+  }
 
+  async function closeOffscreen() {
+    try {
+      await chromeApi.offscreen.closeDocument();
+    } catch {
+      // No document was open.
+    }
+  }
+
+  async function saveResults(task) {
     const saved = task.contentMap.size;
     if (saved > 0) {
       const builder = new MarkdownBuilder();
@@ -86,10 +103,6 @@ export function installBackground(chromeApi, services = {}) {
         total: 0,
       });
     }
-
-    await chromeApi.offscreen.closeDocument().catch(() => undefined);
-    task.markAsFinished();
-    taskManager.cleanupTask(task.taskId);
   }
 
   async function openOffscreen() {
@@ -127,7 +140,7 @@ export function installBackground(chromeApi, services = {}) {
       return { ok: false, error: error?.message || 'Download failed' };
     } finally {
       if (opened) {
-        await chromeApi.offscreen.closeDocument().catch(() => undefined);
+        await closeOffscreen();
       }
     }
   }
