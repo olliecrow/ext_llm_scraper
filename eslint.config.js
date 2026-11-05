@@ -52,6 +52,9 @@ export default [
       'no-constant-condition': 'off',
       'no-unused-vars': 'off',
       'no-useless-assignment': 'off',
+      'prefer-arrow-callback': 'off',
+      'prefer-template': 'off',
+      'arrow-body-style': 'off',
     },
   },
   {
