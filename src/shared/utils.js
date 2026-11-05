@@ -106,7 +106,7 @@ export function normalizeUrl(url, options = {}) {
     }
 
     return urlObj.toString();
-  } catch (_) {
+  } catch {
     return url;
   }
 }
@@ -155,7 +155,7 @@ export function isSameSite(leftUrl, rightUrl) {
   try {
     left = new URL(leftUrl);
     right = new URL(rightUrl);
-  } catch (_) {
+  } catch {
     return false;
   }
 
@@ -197,7 +197,7 @@ export function hasExcludedExtension(url, excludedExtensions) {
   try {
     const pathname = new URL(url).pathname.toLowerCase();
     return excludedExtensions.some((ext) => pathname.endsWith(ext));
-  } catch (_) {
+  } catch {
     const lowercaseUrl = String(url).toLowerCase();
     return excludedExtensions.some((ext) => lowercaseUrl.endsWith(ext));
   }

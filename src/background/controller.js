@@ -99,7 +99,7 @@ export function installBackground(chromeApi, services = {}) {
   async function openOffscreen() {
     try {
       await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
-    } catch (_) {
+    } catch {
       await chromeApi.offscreen.closeDocument();
       await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
     }

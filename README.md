@@ -8,6 +8,8 @@ Help you archive the page you are reading, or a limited set of pages on that sit
 
 ## Quick start
 
+Use Node.js 22 or newer. CI uses Node.js 24.
+
 ```bash
 npm ci --ignore-scripts
 npm test

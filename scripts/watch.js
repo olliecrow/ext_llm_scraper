@@ -3,12 +3,10 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { build } from './build.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const execAsync = promisify(exec);
 
 const SRC_DIR = path.join(__dirname, '..', 'src');
 const DEBOUNCE_DELAY = 1000; // 1 second debounce
@@ -30,7 +28,7 @@ async function rebuild() {
 
   try {
     const startTime = Date.now();
-    await execAsync('npm run build');
+    build();
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`✅ Build completed in ${duration}s\n`);
   } catch (error) {

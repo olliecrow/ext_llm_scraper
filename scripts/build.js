@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +14,7 @@ function shouldSkipEntry(name) {
   return name === '.DS_Store' || name === 'Thumbs.db' || name.startsWith('._');
 }
 
-function build() {
+export function build() {
   console.log('Building extension...');
 
   fs.rmSync(distDir, { recursive: true, force: true });
@@ -30,9 +30,13 @@ function build() {
   console.log(`Extension ready in: ${path.relative(rootDir, distDir)}`);
 }
 
-try {
-  build();
-} catch (error) {
-  console.error('Build failed:', error);
-  process.exit(1);
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  try {
+    build();
+  } catch (error) {
+    console.error('Build failed:', error);
+    process.exit(1);
+  }
 }

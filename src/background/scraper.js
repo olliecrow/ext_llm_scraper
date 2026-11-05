@@ -42,7 +42,7 @@ export function extractPageContent() {
     .filter((href) => {
       try {
         return ['http:', 'https:'].includes(new URL(href).protocol);
-      } catch (_) {
+      } catch {
         return false;
       }
     });
@@ -228,7 +228,7 @@ export class PageScraper {
         target: { tabId },
         files: ['src/lib/readability.js'],
       });
-    } catch (_) {
+    } catch {
       // Continue without readability
     }
   }
