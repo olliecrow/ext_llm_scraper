@@ -42,13 +42,10 @@ export class TaskState {
 
     this.queue = [this.startingUrl];
     this.visited = new Set([this.startingUrl]);
-    this.processed = 0;
     this.attempts = 0;
     this.inProgress = 0;
     this.abort = false;
     this.abortController = new AbortController();
-    this.isFinishing = false;
-    this.isFinished = false;
 
     this.contentMap = new Map();
   }
@@ -114,30 +111,7 @@ export class TaskState {
       title: content?.title ?? url,
       textContent: content?.textContent ?? '',
     });
-    this.processed = this.contentMap.size;
 
     return true;
-  }
-
-  isComplete() {
-    return !this.abort && this.queue.length === 0 && this.inProgress === 0;
-  }
-
-  markAsFinishing() {
-    if (this.isFinished || this.isFinishing) {
-      return false;
-    }
-
-    if (!this.isComplete()) {
-      return false;
-    }
-
-    this.isFinishing = true;
-    return true;
-  }
-
-  markAsFinished() {
-    this.isFinishing = false;
-    this.isFinished = true;
   }
 }

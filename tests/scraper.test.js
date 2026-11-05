@@ -70,7 +70,7 @@ describe('PageScraper', () => {
     const result = await scraper.scrape(task, 'https://example.com/missing');
 
     assert.equal(result, false);
-    assert.equal(task.processed, 0);
+    assert.equal(task.contentMap.size, 0);
     assert.equal(task.attempts, 1);
     assert.equal(task.contentMap.size, 0);
   });
@@ -100,7 +100,7 @@ describe('PageScraper', () => {
     const ok = await scraper.scrape(task, 'https://example.com/ok');
 
     assert.equal(ok, true);
-    assert.equal(task.processed, 1);
+    assert.equal(task.contentMap.size, 1);
     assert.equal(task.attempts, 2);
     assert.ok(
       statuses.some((status) => status.status === 'Scraped 1 page(s)' && status.processed === 1)
@@ -110,13 +110,13 @@ describe('PageScraper', () => {
   test('returns false for invalid URLs', async () => {
     const result = await scraper.scrape(task, 'not-a-url');
     assert.equal(result, false);
-    assert.equal(task.processed, 0);
+    assert.equal(task.contentMap.size, 0);
   });
 
   test('skips excluded extensions', async () => {
     const result = await scraper.scrape(task, 'https://example.com/file.pdf');
     assert.equal(result, false);
-    assert.equal(task.processed, 0);
+    assert.equal(task.contentMap.size, 0);
   });
 
   test('extracts content and queues links', async () => {
@@ -137,7 +137,7 @@ describe('PageScraper', () => {
     const result = await scraper.scrape(task, 'https://example.com/about');
 
     assert.equal(result, true);
-    assert.equal(task.processed, 1);
+    assert.equal(task.contentMap.size, 1);
     assert.deepEqual(task.contentMap.get('https://example.com/about'), {
       title: 'About',
       textContent: 'About page content',

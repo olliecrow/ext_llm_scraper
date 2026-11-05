@@ -61,14 +61,9 @@ export function installBackground(chromeApi, services = {}) {
   }
 
   async function finishTask(task) {
-    if (task.isFinished || task.isFinishing) {
-      return;
-    }
-    task.isFinishing = true;
     try {
       await saveResults(task);
     } finally {
-      task.markAsFinished();
       taskManager.cleanupTask(task.taskId);
     }
   }

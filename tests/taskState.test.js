@@ -131,17 +131,4 @@ describe('TaskState', () => {
     assert.equal(task.getNextUrl(), 'https://example.com/next');
     assert.equal(task.getNextUrl(), null);
   });
-
-  test('tracks completion state correctly', () => {
-    const task = new TaskState(1, START_URL, { maxPages: 1 });
-
-    assert.equal(task.isComplete(), false);
-    task.queue = [];
-    task.inProgress = 0;
-    assert.equal(task.isComplete(), true);
-    assert.equal(task.markAsFinishing(), true);
-    assert.equal(task.markAsFinishing(), false);
-    task.markAsFinished();
-    assert.equal(task.isFinished, true);
-  });
 });
