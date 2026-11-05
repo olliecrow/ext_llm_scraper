@@ -473,6 +473,23 @@ describe('PageScraper', () => {
     assert.equal(task.contentMap.size, 0);
   });
 
+  test('skips style sheets and scripts served without a file extension', async () => {
+    for (const type of ['text/css', 'text/javascript; charset=utf-8', 'application/json']) {
+      globalThis.fetch = mock.fn(async (url) => ({
+        url,
+        headers: { get: () => type },
+        text: async () => 'body { color: red; }'.repeat(20),
+      }));
+      scraper.nextStart = 0;
+
+      const result = await scraper.scrape(task, 'https://example.com/asset');
+
+      assert.equal(result, false, type);
+    }
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.equal(task.contentMap.size, 0);
+  });
+
   test('logs when Readability is not injected', async () => {
     const statuses = [];
     taskManager.sendStatus = (_id, data) => {

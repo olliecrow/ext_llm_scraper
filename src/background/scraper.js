@@ -4,6 +4,7 @@ import { ensureOffscreenDocument } from './offscreenDoc.js';
 
 const STATIC_TEXT_LIMIT = 2_000_000;
 const STATIC_TEXT_MINIMUM = 100;
+const PAGE_CONTENT_TYPE = /^\s*(text\/html|application\/xhtml\+xml|text\/plain)\s*(;|$)/i;
 
 export function extractPageContent(
   rootDocument = document,
@@ -319,7 +320,7 @@ export class PageScraper {
       }
 
       const contentType = response.headers?.get?.('content-type') || '';
-      if (!/html|text/i.test(contentType)) {
+      if (!PAGE_CONTENT_TYPE.test(contentType)) {
         this.taskManager.sendStatus(task.taskId, {
           status: 'Skipping non-HTML resource',
           debug: `Ignored by content type: ${url}`,
