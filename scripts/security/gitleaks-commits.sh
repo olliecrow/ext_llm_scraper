@@ -25,6 +25,11 @@ if grep -qvxE '[0-9a-f]{40}|[0-9a-f]{64}' "$list_file"; then
   die "commit list has a line that is not a full commit ID"
 fi
 commits="$(paste -sd' ' "$list_file")"
+commit_ids=()
+while IFS= read -r commit_id; do
+  git -C "$repo_dir" cat-file -e "${commit_id}^{commit}" || die "commit does not exist"
+  commit_ids+=("$commit_id")
+done <"$list_file"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf -- "${tmp_dir}"' EXIT
@@ -33,7 +38,7 @@ log_file="${tmp_dir}/gitleaks.log"
 
 status=0
 gitleaks git --no-banner --no-color --redact --verbose --config "$config" \
-  --log-opts="--text --diff-merges=first-parent --no-walk ${commits}" "$repo_dir" \
+  --log-opts="--text --no-textconv --no-ext-diff --diff-merges=first-parent --no-walk ${commits}" "$repo_dir" \
   >"$raw_log" 2>&1 || status=$?
 # Drop color codes, which gitleaks writes even to a file.
 esc="$(printf '\033')"
@@ -46,4 +51,15 @@ fi
 [[ "$status" -eq 0 ]] || die "gitleaks exited with status ${status}"
 if grep -qE '(^| )(ERR|FTL) ' "$log_file"; then
   die "gitleaks logged an error"
+fi
+
+count="$(sed -nE 's/.* ([0-9]+) commits? scanned\..*/\1/p' "$log_file" | tail -n 1)"
+[[ -n "$count" ]] || die "gitleaks did not report a scanned-commit count"
+if [[ "$count" -eq 0 ]]; then
+  git -C "$repo_dir" log --text --no-textconv --no-ext-diff --diff-merges=first-parent \
+    --no-walk --format= --patch "${commit_ids[@]}" >"${tmp_dir}/patch" \
+    || die "unable to check added lines"
+  if awk '/^diff --git / { hunk=0 } /^@@ / { hunk=1 } hunk && /^\+/ { added=1 } END { exit !added }' "${tmp_dir}/patch"; then
+    die "gitleaks scanned zero commits despite added lines"
+  fi
 fi

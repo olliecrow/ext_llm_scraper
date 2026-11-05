@@ -72,6 +72,31 @@ else
   echo "ok   text missing file"
 fi
 
+# Token values are synthetic and assembled only in temporary fixtures.
+for family in ant-oat01 ant-api03 proj svcacct admin generic jwt github pat; do
+  body="$(printf '%040d' 1)"
+  case "$family" in
+    generic) value="sk-${body}" ;;
+    jwt) value="eyJ${body}.eyJ${body}.${body}" ;;
+    github) value="ghp_${body}" ;;
+    pat) value="github_pat_${body}" ;;
+    *) value="sk-${family}-${body}" ;;
+  esac
+  file="$(fixture "token-${family}" "${value}")"
+  expect fail "text bare ${family}" bash "$checker" "$file"
+  if grep -Fq "$value" "${tmp_dir}/out.log"; then
+    echo "FAIL scanner printed a token value"
+    failures=$((failures + 1))
+  fi
+  if [[ "$family" == ant-* ]]; then
+    expect fail "gitleaks bare ${family}" gitleaks dir --no-banner --verbose --redact --config "$gitleaks_config" "$file"
+  fi
+  file="$(fixture "safe-${family}" "task-${value}" "risk_${value}")"
+  expect pass "text boundary ${family}" bash "$checker" "$file"
+done
+file="$(fixture safe-prose 'task-list-item risk-assessment task-ant-colony-development')"
+expect pass "text safe prose" bash "$checker" "$file"
+
 # Push ranges in a scratch repository.
 work="${tmp_dir}/repo"
 # Ignore user and system git config, such as signing or hooks.
@@ -133,6 +158,29 @@ expect error "gitleaks unknown commit is an error" \
 printf '%s \n' "$root" >"${tmp_dir}/bad-line.txt"
 expect error "gitleaks malformed list is an error" \
   bash "${script_dir}/gitleaks-commits.sh" "${tmp_dir}/bad-line.txt" "$work"
+
+# Stub success must not hide skipped commits or missing scan summaries.
+mkdir "${tmp_dir}/bin"
+cat >"${tmp_dir}/bin/gitleaks" <<'STUB'
+#!/usr/bin/env bash
+case "$SCAN_MODE" in
+  zero) echo 'INF 0 commits scanned.' ;;
+  clean) echo 'INF 1 commits scanned.' ;;
+  error) echo 'ERR git failed'; echo 'INF 1 commits scanned.' ;;
+  missing) echo 'INF no leaks found' ;;
+esac
+STUB
+chmod +x "${tmp_dir}/bin/gitleaks"
+printf '%s\n' "$root" >"${tmp_dir}/stub-list.txt"
+for mode in zero missing error; do
+  expect error "gitleaks ${mode} fails closed" env PATH="${tmp_dir}/bin:$PATH" SCAN_MODE="$mode" \
+    bash "${script_dir}/gitleaks-commits.sh" "${tmp_dir}/stub-list.txt" "$work"
+done
+expect pass "gitleaks clean summary" env PATH="${tmp_dir}/bin:$PATH" SCAN_MODE=clean \
+  bash "${script_dir}/gitleaks-commits.sh" "${tmp_dir}/stub-list.txt" "$work"
+printf '%s\n' "$clean_tip" >"${tmp_dir}/stub-list.txt"
+expect pass "gitleaks zero for delete-only commit" env PATH="${tmp_dir}/bin:$PATH" SCAN_MODE=zero \
+  bash "${script_dir}/gitleaks-commits.sh" "${tmp_dir}/stub-list.txt" "$work"
 
 if [[ "$failures" -ne 0 ]]; then
   echo "${failures} self-test case(s) failed" >&2

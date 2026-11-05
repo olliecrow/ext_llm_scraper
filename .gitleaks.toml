@@ -18,3 +18,9 @@ regexTarget = "secret"
 regexes = [
   '''^(Users/(YOU|USER|username)|home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))$'''
 ]
+
+[[rules]]
+id = "anthropic-token"
+description = "Anthropic API and OAuth tokens"
+regex = '''(?:^|[^A-Za-z0-9_-])(sk-ant-[a-z]+[0-9]{2}-[A-Za-z0-9_-]{20,})'''
+secretGroup = 1
