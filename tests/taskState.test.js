@@ -7,7 +7,9 @@ describe('TaskState', () => {
     const task = new TaskState(1, START_URL, {});
     expect(task.startingUrl).toBe('https://example.com/posts/welcome');
     expect(task.startingDomain).toBe('example.com');
-    expect(task.settings.concurrency).toBe(10);
+    expect(task.settings.concurrency).toBe(3);
+    expect(task.settings.maxPages).toBe(50);
+    expect(task.settings.crawlMode).toBe(false);
   });
 
   test('clamps settings to configured limits', () => {
@@ -31,7 +33,7 @@ describe('TaskState', () => {
 
     expect(task.settings.maxPages).toBe(3);
     expect(task.settings.concurrency).toBe(2);
-    expect(task.settings.crawlMode).toBe(true);
+    expect(task.settings.crawlMode).toBe(false);
   });
 
   test('keeps functional query strings distinct and collapses a trailing slash', () => {

@@ -2,7 +2,8 @@ import { PageScraper, extractPageContent } from '../src/background/scraper.js';
 import { TaskManager } from '../src/background/taskManager.js';
 import { TaskState } from '../src/background/taskState.js';
 
-const createTask = () => new TaskState(1, 'https://example.com', { maxPages: 5, concurrency: 1 });
+const createTask = () =>
+  new TaskState(1, 'https://example.com', { maxPages: 5, concurrency: 1, crawlMode: true });
 
 describe('PageScraper', () => {
   let scraper;
@@ -147,7 +148,10 @@ describe('PageScraper', () => {
     expect(task.queue).not.toContain('https://other.com/');
     expect(task.queue).not.toContain('https://example.com:8443/admin');
 
-    const wwwTask = new TaskState(2, 'https://www.example.com/', { maxPages: 5 });
+    const wwwTask = new TaskState(2, 'https://www.example.com/', {
+      maxPages: 5,
+      crawlMode: true,
+    });
     scraper.enqueueDiscoveredLinks(wwwTask, [
       'https://example.com/about',
       'https://blog.example.com/no',
@@ -155,7 +159,10 @@ describe('PageScraper', () => {
     expect(wwwTask.queue).toContain('https://example.com/about');
     expect(wwwTask.queue).not.toContain('https://blog.example.com/no');
 
-    const custom = new TaskState(3, 'https://example.com:8443/', { maxPages: 5 });
+    const custom = new TaskState(3, 'https://example.com:8443/', {
+      maxPages: 5,
+      crawlMode: true,
+    });
     scraper.enqueueDiscoveredLinks(custom, [
       'https://example.com/home',
       'https://example.com:8443/admin',

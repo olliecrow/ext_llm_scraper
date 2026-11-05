@@ -202,6 +202,23 @@ export function installBackground(chromeApi, services = {}) {
       return false;
     }
 
+    if (message.action === 'status') {
+      const task = typeof message.tabId === 'number' ? taskManager.getTask(message.tabId) : null;
+      if (!task) {
+        sendResponse({ success: true, running: false, status: 'Ready', processed: 0, total: 0 });
+      } else {
+        const saved = task.contentMap.size;
+        sendResponse({
+          success: true,
+          running: true,
+          status: saved > 0 ? `Scraped ${saved} page(s)` : 'Scraping',
+          processed: saved,
+          total: task.settings.maxPages,
+        });
+      }
+      return false;
+    }
+
     if (message.action === 'ping') {
       sendResponse({ success: true });
       return false;

@@ -8,8 +8,9 @@
 ## Product contracts
 
 - Preserve popup behavior and the Markdown output structure unless a change is intentional and documented in `README.md`.
-- Crawl only links on the starting page's domain. Keep page limits, concurrency limits, delays, cancellation, and task state explicit and tested.
-- The broad HTTP/HTTPS host permissions are intentional because a user-started crawl may visit same-domain pages. Keep permission documentation aligned with `manifest.json` and do not widen permissions without a concrete feature need.
+- Crawl only links on the starting page's site. The `www` host and the apex host are one site. Other subdomains stay out. Keep page limits, concurrency limits, delays, cancellation, and task state explicit and tested.
+- The extension uses `activeTab` plus optional host permissions. It requests the current site when the user presses Start. Do not widen that grant. Keep permission documentation aligned with `manifest.json`.
+- Defaults are single-page capture, 50 pages, and 3 concurrent tabs. A crawl is opt-in.
 - Keep user data local to the browser and generated download. Do not add remote collection, analytics, credentials, or hidden network services.
 - Keep source, tests, and scripts canonical; do not restore historical builds, debug bundles, or one-off test-extension copies.
 

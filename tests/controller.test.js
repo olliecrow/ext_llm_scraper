@@ -192,6 +192,34 @@ describe('background controller', () => {
     });
   });
 
+  test('reports running status for the current tab', () => {
+    const taskManager = new TaskManager();
+    installBackground(chrome, {
+      taskManager,
+      scraper: { scrape: () => new Promise(() => undefined) },
+    });
+    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+
+    expect(dispatch(listener, { action: 'status', tabId: 11 })).toEqual({
+      success: true,
+      running: false,
+      status: 'Ready',
+      processed: 0,
+      total: 0,
+    });
+
+    dispatch(listener, {
+      action: 'start',
+      tabId: 11,
+      startingUrl: 'https://example.com/live',
+      settings: { maxPages: 4, concurrency: 1, crawlMode: false },
+    });
+
+    expect(dispatch(listener, { action: 'status', tabId: 11 })).toEqual(
+      expect.objectContaining({ success: true, running: true, processed: 0, total: 4 })
+    );
+  });
+
   test('does not start a task for a foreign sender', () => {
     const taskManager = new TaskManager();
     installBackground(chrome, {

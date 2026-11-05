@@ -1,6 +1,6 @@
 {
   "name": "webpage-scraper-extension",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Chrome extension for scraping webpage content into Markdown format",
   "type": "module",
   "scripts": {

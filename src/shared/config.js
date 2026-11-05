@@ -11,10 +11,10 @@ export const CONFIG = {
     MAX_DELAY_MS: 60000,
   },
   DEFAULTS: {
-    CONCURRENCY: 10,
-    MAX_PAGES: 2000,
+    CONCURRENCY: 3,
+    MAX_PAGES: 50,
     DELAY_MS: 0,
-    CRAWL_MODE: true,
+    CRAWL_MODE: false,
   },
   TRACKING_PARAMS: [
     'utm_source',

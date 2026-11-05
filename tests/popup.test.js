@@ -1,29 +1,31 @@
 async function loadPopup() {
   document.body.innerHTML = `
-    <label><input type="checkbox" id="crawlMode" checked> Crawl sub-pages</label>
-    <input type="number" id="maxPages" value="2000">
-    <input type="number" id="concurrency" value="10">
+    <label><input type="checkbox" id="crawlMode"> Crawl sub-pages</label>
+    <p id="crawlWarning" hidden>Crawl opens each link on this site. A link can change your account or log you out.</p>
+    <input type="number" id="maxPages" value="50">
+    <input type="number" id="concurrency" value="3">
     <input type="number" id="delay" value="0">
     <button id="startButton">Start</button>
     <button id="stopButton" disabled>Stop</button>
     <button id="clearLogButton">Clear Log</button>
-    <div id="status">Ready</div>
+    <div id="status" aria-live="polite">Ready</div>
     <span id="processed">0</span>
     <span id="total">0</span>
     <div id="debugLog"></div>
   `;
 
   await import('../src/popup/popup.js');
-  document.dispatchEvent(new Event('DOMContentLoaded'));
+  await flushPopupClick();
 }
 
 function sendMessageResponse(response) {
-  chrome.runtime.sendMessage.mockImplementation((_message, callback) => {
+  chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+    const payload = message?.action === 'status' ? { success: true, running: false } : response;
     if (typeof callback === 'function') {
-      callback(response);
+      callback(payload);
       return undefined;
     }
-    return Promise.resolve(response);
+    return Promise.resolve(payload);
   });
 }
 
@@ -36,6 +38,13 @@ async function flushPopupClick() {
 describe('popup controls', () => {
   beforeEach(() => {
     jest.resetModules();
+    chrome.tabs.query.mockReset();
+    chrome.tabs.query.mockResolvedValue([{ id: 1, active: true, url: 'https://example.com' }]);
+    chrome.permissions = {
+      request: jest.fn((_permissions, callback) => {
+        callback(true);
+      }),
+    };
   });
 
   test('does not switch to running state when start fails', async () => {
@@ -47,6 +56,9 @@ describe('popup controls', () => {
 
     expect(document.getElementById('startButton').disabled).toBe(false);
     expect(document.getElementById('stopButton').disabled).toBe(true);
+    expect(document.getElementById('status').textContent).toContain(
+      'Error starting task: A task already exists for this tab'
+    );
     expect(document.getElementById('debugLog').textContent).toContain(
       'Error starting task: A task already exists for this tab'
     );
@@ -61,6 +73,98 @@ describe('popup controls', () => {
 
     expect(document.getElementById('startButton').disabled).toBe(true);
     expect(document.getElementById('stopButton').disabled).toBe(false);
+    expect(chrome.permissions.request).toHaveBeenCalledWith(
+      {
+        origins: [
+          'http://example.com/*',
+          'https://example.com/*',
+          'http://www.example.com/*',
+          'https://www.example.com/*',
+        ],
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('does not send start when site access is denied', async () => {
+    sendMessageResponse({ success: true });
+    chrome.permissions.request.mockImplementation((_permissions, callback) => {
+      callback(false);
+    });
+    await loadPopup();
+
+    document.getElementById('startButton').click();
+    await flushPopupClick();
+
+    const starts = chrome.runtime.sendMessage.mock.calls.filter(
+      (call) => call[0]?.action === 'start'
+    );
+    expect(starts).toHaveLength(0);
+    expect(document.getElementById('status').textContent).toBe('Site access was not granted');
+    expect(document.getElementById('startButton').disabled).toBe(false);
+  });
+
+  test('asks for the www pair of the open site', async () => {
+    sendMessageResponse({ success: true });
+    chrome.tabs.query.mockResolvedValue([
+      { id: 4, active: true, url: 'https://www.example.com/a' },
+    ]);
+    await loadPopup();
+
+    document.getElementById('startButton').click();
+    await flushPopupClick();
+
+    expect(chrome.permissions.request).toHaveBeenCalledWith(
+      {
+        origins: [
+          'http://www.example.com/*',
+          'https://www.example.com/*',
+          'http://example.com/*',
+          'https://example.com/*',
+        ],
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('disables start on a non-http page', async () => {
+    chrome.tabs.query.mockResolvedValue([{ id: 1, active: true, url: 'chrome://extensions' }]);
+    await loadPopup();
+
+    expect(document.getElementById('status').textContent).toBe('Open a normal web page first');
+    expect(document.getElementById('startButton').disabled).toBe(true);
+  });
+
+  test('restores a running task when the popup opens', async () => {
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      const response =
+        message?.action === 'status'
+          ? { success: true, running: true, status: 'Scraping', processed: 2, total: 50 }
+          : { success: true };
+      if (typeof callback === 'function') {
+        callback(response);
+      }
+      return Promise.resolve(response);
+    });
+    await loadPopup();
+
+    expect(document.getElementById('startButton').disabled).toBe(true);
+    expect(document.getElementById('stopButton').disabled).toBe(false);
+    expect(document.getElementById('status').textContent).toBe('Scraping');
+    expect(document.getElementById('processed').textContent).toBe('2');
+    expect(document.getElementById('total').textContent).toBe('50');
+  });
+
+  test('shows the crawl warning only while crawl is checked', async () => {
+    sendMessageResponse({ success: true });
+    await loadPopup();
+
+    const warning = document.getElementById('crawlWarning');
+    expect(warning.hidden).toBe(true);
+    document.getElementById('crawlMode').checked = true;
+    document.getElementById('crawlMode').dispatchEvent(new Event('change'));
+    expect(warning.hidden).toBe(false);
+    expect(warning.textContent).toContain('A link can change your account or log you out.');
   });
 
   test('keeps start disabled after stop until the task is done', async () => {
@@ -96,6 +200,9 @@ describe('popup controls', () => {
 
     expect(document.getElementById('startButton').disabled).toBe(true);
     expect(document.getElementById('stopButton').disabled).toBe(false);
+    expect(document.getElementById('status').textContent).toContain(
+      'Error stopping task: No active task'
+    );
     expect(document.getElementById('debugLog').textContent).toContain(
       'Error stopping task: No active task'
     );

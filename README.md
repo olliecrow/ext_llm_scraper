@@ -4,14 +4,7 @@ A lightweight Chrome extension that collects readable content from a site and ex
 
 ## What this project is trying to achieve
 
-Help you archive a page, or a set of related pages on the same domain, into one clean Markdown file.
-
-## What you experience as a user
-
-1. Open the page you want to capture.
-2. Choose whether to scrape just this page or crawl same-domain links.
-3. Click start and watch progress in the popup.
-4. Download one Markdown file with a table of contents and page sections.
+Help you archive the page you are reading, or a limited set of pages on that site, into one Markdown file. Processing stays in the browser. The extension does not send page text anywhere else.
 
 ## Quick start
 
@@ -28,19 +21,21 @@ Load `dist/` in Chrome.
 3. Click Load unpacked.
 4. Choose `dist`.
 
+The install prompt does not ask for access to every site. Access is requested for the open site when you press Start.
+
 ## Usage
 
-1. Open the page you want to archive.
-2. Click the extension action button and adjust options if needed.
-3. Press Start.
-4. Press Stop to cancel.
+1. Open a normal http or https page.
+2. Click the extension action and adjust options if needed.
+3. Press Start and accept the site-access prompt.
+4. Press Stop to cancel. Pages already captured are saved.
 
 Available options.
 
-- crawl sub-pages on the same domain
-- maximum pages, from 1 to 2000
-- concurrent tabs, from 1 to 15
-- optional delay between requests
+- Crawl sub-pages. Off by default. When it is on, the extension opens each link on this site. A link can change your account or log you out.
+- Maximum pages, from 1 to 2000. Default 50.
+- Concurrent tabs, from 1 to 15. Default 3.
+- Delay between request starts, from 0 to 60000 ms. Default 0. A 150 ms gap still applies when the delay is 0.
 
 ## Output
 
@@ -53,18 +48,20 @@ The generated Markdown includes.
 
 - Unit tests cover state flow, scraper workflow, utility functions, and Chrome wrappers.
 - `npm run check:all` covers the core modules that can run outside Chrome.
-- Browser smoke checks cover popup behavior because it depends on Chrome extension APIs.
+- Browser smoke checks cover popup, permission, crawl, cancel, and download behavior because those paths depend on Chrome extension APIs.
 - `npm run build` verifies packaging.
 
 ## Privacy and permissions
 
 - Scraping and Markdown generation happen locally in the browser. The extension has no analytics, remote collection, credentials, or hidden services.
-- The extension requests `http://*/*` and `https://*/*` host permissions so it can open and read same-domain pages during a user-started crawl.
-- The `downloads` permission saves the generated Markdown, and `scripting` extracts content from pages selected by the crawl.
+- Permissions are `activeTab`, `downloads`, and `scripting`. Host access is optional. Pressing Start requests the current site and its `www` pair over http and https.
+- `downloads` saves the Markdown file. `scripting` reads the page. `activeTab` lets the popup see the tab you opened it from.
+- Stop saves the pages already captured.
+- If the service worker restarts, the in-memory crawl is lost and the current tab can stay open. Start the crawl again.
 
 ## Notes
 
-- Default concurrency is 10 tabs, max is 15.
+- Default concurrency is 3 tabs. The maximum is 15.
 - The repo omits historical builds and debug bundles to keep the public release tidy.
 
 ## License

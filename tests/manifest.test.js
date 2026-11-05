@@ -10,8 +10,9 @@ describe('extension manifest', () => {
     expect(manifest.content_security_policy.extension_pages).toBe(
       "script-src 'self'; object-src 'none'; base-uri 'none'"
     );
-    expect(manifest.permissions).toEqual(['downloads', 'scripting']);
-    expect(manifest.host_permissions).toEqual(['http://*/*', 'https://*/*']);
+    expect(manifest.permissions).toEqual(['activeTab', 'downloads', 'scripting']);
+    expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
+    expect(manifest.host_permissions).toBeUndefined();
     expect(manifest).not.toHaveProperty('web_accessible_resources');
   });
 

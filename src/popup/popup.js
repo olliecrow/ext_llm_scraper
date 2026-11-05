@@ -1,9 +1,87 @@
-// Clear log button
+let activeTab = null;
+let port = null;
+
+function setStatus(text) {
+  document.getElementById('status').textContent = text;
+}
+
+function addDebugLog(text) {
+  const dbg = document.getElementById('debugLog');
+  dbg.textContent += `${text}\n`;
+  dbg.scrollTop = dbg.scrollHeight;
+}
+
+function isHttpUrl(url) {
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function siteOrigins(url) {
+  const { hostname } = new URL(url);
+  const bare = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+  const hosts = hostname === bare ? [hostname, `www.${hostname}`] : [hostname, bare];
+  return hosts.flatMap((host) => [`http://${host}/*`, `https://${host}/*`]);
+}
+
+function readSettings() {
+  return {
+    crawlMode: document.getElementById('crawlMode').checked,
+    maxPages: document.getElementById('maxPages').valueAsNumber,
+    concurrency: document.getElementById('concurrency').valueAsNumber,
+    delay: document.getElementById('delay').valueAsNumber,
+  };
+}
+
+function updateCrawlWarning() {
+  const warning = document.getElementById('crawlWarning');
+  if (!warning) {
+    return;
+  }
+  warning.hidden = !document.getElementById('crawlMode').checked;
+}
+
+function setRunning(running) {
+  document.getElementById('startButton').disabled = running;
+  document.getElementById('stopButton').disabled = !running;
+}
+
+function applyPage(tab) {
+  activeTab = tab ?? null;
+  if (!activeTab || !isHttpUrl(activeTab.url)) {
+    setStatus('Open a normal web page first');
+    document.getElementById('startButton').disabled = true;
+    return;
+  }
+
+  if (port) {
+    port.postMessage({ action: 'subscribe', tabId: activeTab.id });
+  }
+
+  chrome.runtime.sendMessage({ action: 'status', tabId: activeTab.id }, (response) => {
+    if (!response?.running) {
+      return;
+    }
+    setRunning(true);
+    if (response.status) {
+      setStatus(response.status);
+    }
+    if (response.processed !== undefined && response.total !== undefined) {
+      document.getElementById('processed').textContent = response.processed;
+      document.getElementById('total').textContent = response.total;
+    }
+  });
+}
+
 document.getElementById('clearLogButton').addEventListener('click', () => {
   document.getElementById('debugLog').textContent = '';
 });
 
-let port;
+document.getElementById('crawlMode').addEventListener('change', updateCrawlWarning);
+updateCrawlWarning();
+
 try {
   port = chrome.runtime.connect({ name: 'popup' });
 } catch (error) {
@@ -11,110 +89,81 @@ try {
   port = null;
 }
 
-// Start scraping
-document.getElementById('startButton').addEventListener('click', async () => {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs || tabs.length === 0) {
-      addDebugLog('Error: No active tab found');
+document.getElementById('startButton').addEventListener('click', () => {
+  if (!activeTab || !isHttpUrl(activeTab.url)) {
+    setStatus('Open a normal web page first');
+    addDebugLog('Error: No active tab found');
+    return;
+  }
+
+  const origins = siteOrigins(activeTab.url);
+  const settings = readSettings();
+  const tabId = activeTab.id;
+  const startingUrl = activeTab.url;
+
+  chrome.permissions.request({ origins }, (granted) => {
+    if (chrome.runtime.lastError || !granted) {
+      addDebugLog('Site access was not granted');
+      setStatus('Site access was not granted');
       return;
     }
 
-    const tabId = tabs[0].id;
-    const settings = {
-      crawlMode: document.getElementById('crawlMode').checked,
-      maxPages: document.getElementById('maxPages').valueAsNumber,
-      concurrency: document.getElementById('concurrency').valueAsNumber,
-      delay: document.getElementById('delay').valueAsNumber,
-    };
-
-    const response = await chrome.runtime.sendMessage({
-      action: 'start',
-      tabId,
-      startingUrl: tabs[0].url,
-      settings,
+    chrome.runtime.sendMessage({ action: 'start', tabId, startingUrl, settings }, (response) => {
+      if (response?.success) {
+        setRunning(true);
+        addDebugLog('User pressed Start. Task started...');
+        return;
+      }
+      const error = response?.error || 'Unknown background error';
+      addDebugLog(`Error starting task: ${error}`);
+      setStatus(`Error starting task: ${error}`);
     });
-    if (response?.success) {
-      document.getElementById('startButton').disabled = true;
-      document.getElementById('stopButton').disabled = false;
-      addDebugLog('User pressed Start. Task started...');
-    } else {
-      addDebugLog(`Error starting task: ${response?.error || 'Unknown background error'}`);
-    }
-  } catch (error) {
-    addDebugLog(`Error starting task: ${error.message}`);
-  }
+  });
 });
 
-// Stop scraping
-document.getElementById('stopButton').addEventListener('click', async () => {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs || tabs.length === 0) {
-      addDebugLog('Error: No active tab found');
-      return;
-    }
+document.getElementById('stopButton').addEventListener('click', () => {
+  if (!activeTab) {
+    addDebugLog('Error: No active tab found');
+    setStatus('Error: No active tab found');
+    return;
+  }
 
-    const tabId = tabs[0].id;
-    const response = await chrome.runtime.sendMessage({ action: 'stop', tabId });
-
+  chrome.runtime.sendMessage({ action: 'stop', tabId: activeTab.id }, (response) => {
     if (response?.success) {
       addDebugLog('Stop requested by user.');
-    } else {
-      addDebugLog(`Error stopping task: ${response?.error || 'Unknown background error'}`);
-    }
-  } catch (error) {
-    addDebugLog(`Error stopping task: ${error.message}`);
-  }
-});
-
-// Subscribe to updates
-(async () => {
-  try {
-    if (!port) {
-      addDebugLog('Background connection not available - real-time updates disabled');
       return;
     }
+    const error = response?.error || 'Unknown background error';
+    addDebugLog(`Error stopping task: ${error}`);
+    setStatus(`Error stopping task: ${error}`);
+  });
+});
 
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs && tabs.length > 0) {
-      const tabId = tabs[0].id;
-      port.postMessage({ action: 'subscribe', tabId });
-    }
-  } catch (error) {
+chrome.tabs
+  .query({ active: true, currentWindow: true })
+  .then((tabs) => {
+    applyPage(tabs?.[0]);
+  })
+  .catch((error) => {
     addDebugLog(`Error subscribing to updates: ${error.message}`);
-    console.error('Subscribe error details:', error);
-  }
-})();
+  });
 
-// Listen for messages
 if (port && port.onMessage) {
   port.onMessage.addListener((msg) => {
-    // If we see a status
     if (msg.status) {
-      document.getElementById('status').textContent = msg.status;
+      setStatus(msg.status);
       if (msg.processed !== undefined && msg.total !== undefined) {
         document.getElementById('processed').textContent = msg.processed;
         document.getElementById('total').textContent = msg.total;
       }
     }
-    // If we have a debug message
     if (msg.debug) {
       addDebugLog(msg.debug);
     }
-    // If we are done
     if (msg.done) {
-      document.getElementById('startButton').disabled = false;
-      document.getElementById('stopButton').disabled = true;
+      setRunning(false);
     }
   });
 } else {
   addDebugLog('Real-time status updates unavailable - background connection failed');
-}
-
-// Helper for debug output
-function addDebugLog(text) {
-  const dbg = document.getElementById('debugLog');
-  dbg.textContent += `${text}\n`;
-  dbg.scrollTop = dbg.scrollHeight;
 }
