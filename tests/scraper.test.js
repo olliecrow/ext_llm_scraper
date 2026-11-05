@@ -84,6 +84,7 @@ describe('PageScraper', () => {
       [
         {
           result: {
+            url: 'https://example.com/ok',
             title: 'Ok',
             content: 'Body text',
             links: [],
@@ -412,6 +413,66 @@ describe('PageScraper', () => {
     }
   });
 
+  test('drops a tab that a redirect took to another site', async () => {
+    const statuses = [];
+    taskManager.sendStatus = (_id, data) => {
+      statuses.push(data);
+    };
+    chrome.tabs.get.mock.mockImplementation((tabId, callback) => {
+      const tab = { id: tabId, status: 'complete', url: 'https://other.example/' };
+      if (callback) {
+        callback(tab);
+        return undefined;
+      }
+      return Promise.resolve(tab);
+    });
+
+    const result = await scraper.scrape(task, 'https://example.com/moved');
+
+    assert.equal(result, false);
+    assert.equal(chrome.scripting.executeScript.mock.callCount(), 0);
+    assert.equal(task.contentMap.size, 0);
+    assert.deepEqual(chrome.tabs.remove.mock.calls[0].arguments, [1]);
+    assert.ok(statuses.some((status) => status.status === 'Skipping redirect off this site'));
+  });
+
+  test('drops a tab whose URL is hidden because the site has no access', async () => {
+    chrome.tabs.get.mock.mockImplementation((tabId, callback) => {
+      const tab = { id: tabId, status: 'complete' };
+      if (callback) {
+        callback(tab);
+        return undefined;
+      }
+      return Promise.resolve(tab);
+    });
+
+    const result = await scraper.scrape(task, 'https://example.com/moved');
+
+    assert.equal(result, false);
+    assert.equal(chrome.scripting.executeScript.mock.callCount(), 0);
+  });
+
+  test('drops content that was extracted from another site', async () => {
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [
+        {
+          result: {
+            url: 'https://other.example/',
+            title: 'Other site',
+            content: 'Foreign site content',
+            links: [],
+          },
+        },
+      ],
+    ]);
+
+    const result = await scraper.scrape(task, 'https://example.com/');
+
+    assert.equal(result, false);
+    assert.equal(task.contentMap.size, 0);
+  });
+
   test('logs when Readability is not injected', async () => {
     const statuses = [];
     taskManager.sendStatus = (_id, data) => {
@@ -424,6 +485,7 @@ describe('PageScraper', () => {
       return Promise.resolve([
         {
           result: {
+            url: 'https://example.com/page',
             title: 'Tab title',
             content: 'Tab body with enough text',
             links: [],

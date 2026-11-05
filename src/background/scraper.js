@@ -133,8 +133,18 @@ export class PageScraper {
           return false;
         }
 
+        // A redirect can land on another site. Chrome hides tab.url for a
+        // site without access, so a missing URL also counts as off the site.
+        const loaded = await chrome.tabs.get(tab.id);
+        if (this.leftSite(task, url, loaded?.url)) {
+          return false;
+        }
+
         await this.injectReadability(task, tab.id);
         content = await this.extractContent(tab.id);
+        if (content && this.leftSite(task, url, content.url)) {
+          return false;
+        }
       }
 
       if (!content || !content.content || content.content.trim().length === 0) {
@@ -174,6 +184,17 @@ export class PageScraper {
         await chrome.tabs.remove(tab.id).catch(() => undefined);
       }
     }
+  }
+
+  leftSite(task, url, landedUrl) {
+    if (isSameSite(task.startingUrl, landedUrl || '')) {
+      return false;
+    }
+    this.taskManager.sendStatus(task.taskId, {
+      status: 'Skipping redirect off this site',
+      debug: `Redirect left the site: ${url} -> ${landedUrl || 'a site without access'}`,
+    });
+    return true;
   }
 
   enqueueDiscoveredLinks(task, links) {
@@ -280,11 +301,7 @@ export class PageScraper {
         signal,
       });
 
-      if (!isSameSite(url, response.url)) {
-        this.taskManager.sendStatus(task.taskId, {
-          status: 'Skipping redirect off this site',
-          debug: `Redirect left the site: ${response.url}`,
-        });
+      if (this.leftSite(task, url, response.url)) {
         return false;
       }
 
