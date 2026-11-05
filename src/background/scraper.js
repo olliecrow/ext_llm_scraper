@@ -58,8 +58,21 @@ export function extractPageContent(
       rootDocument.body?.innerText?.trim() || rootDocument.body?.textContent?.trim() || '';
   }
 
+  // Resolve links like the browser does: against the first <base href>,
+  // which resolves against the page URL. A parsed copy has no page URL of
+  // its own, so anchor.href would be wrong there.
+  let baseUrl = pageUrl;
+  const baseHref = rootDocument.querySelector('base[href]')?.getAttribute('href');
+  if (baseHref) {
+    try {
+      baseUrl = new URL(baseHref, pageUrl || undefined).href;
+    } catch {
+      // An invalid base leaves the page URL in place.
+    }
+  }
+
   response.links = Array.from(rootDocument.querySelectorAll('a[href]'))
-    .map((anchor) => absoluteHttpUrl(anchor.getAttribute('href'), pageUrl))
+    .map((anchor) => absoluteHttpUrl(anchor.getAttribute('href'), baseUrl))
     .filter(Boolean);
 
   return response;

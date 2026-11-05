@@ -553,6 +553,37 @@ describe('extractPageContent', () => {
     );
   });
 
+  test('resolves links against the base element', () => {
+    const cases = [
+      ['<base href="https://example.com/docs/">', 'https://example.com/docs/next'],
+      ['<base href="/guide/">', 'https://example.com/guide/next'],
+      ['<base href="http://[bad">', 'https://example.com/next'],
+      ['', 'https://example.com/next'],
+    ];
+    for (const [base, expected] of cases) {
+      const dom = new JSDOM(
+        `<!doctype html><html><head>${base}</head><body><a href="next">Next</a></body></html>`,
+        { url: 'https://example.com/start' }
+      );
+      const result = extractPageContent(dom.window.document, 'https://example.com/start');
+      assert.deepEqual(result.links, [expected], base);
+    }
+  });
+
+  test('resolves base links in a parsed copy with no page URL of its own', () => {
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+      url: 'chrome-extension://ext-id/offscreen.html',
+    });
+    const parsed = new dom.window.DOMParser().parseFromString(
+      '<base href="/docs/"><a href="next">Next</a><a href="https://example.com/abs">Abs</a>',
+      'text/html'
+    );
+
+    const result = extractPageContent(parsed, 'https://example.com/start');
+
+    assert.deepEqual(result.links, ['https://example.com/docs/next', 'https://example.com/abs']);
+  });
+
   test('uses body text as the last content fallback', () => {
     withDom('<section>No main content</section>', () => {
       document.body.innerText = 'Body text fallback';
