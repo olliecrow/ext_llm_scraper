@@ -1,4 +1,5 @@
-// Tests for markdown building functionality
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { MarkdownBuilder } from '../src/background/markdownBuilder.js';
 
 describe('Markdown Builder', () => {
@@ -11,11 +12,11 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('# Table of Contents');
-    expect(result).toContain('1. [Example Page](<https://example.com>)');
-    expect(result).toContain('# Example Page');
-    expect(result).toContain('**URL:** https://example.com');
-    expect(result).toContain('This is the content.');
+    assert.ok(result.includes('# Table of Contents'));
+    assert.ok(result.includes('1. [Example Page](<https://example.com>)'));
+    assert.ok(result.includes('# Example Page'));
+    assert.ok(result.includes('**URL:** https://example.com'));
+    assert.ok(result.includes('This is the content.'));
   });
 
   test('generates markdown with multiple pages', () => {
@@ -29,21 +30,21 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('1. [Page 1](<https://example.com/page1>)');
-    expect(result).toContain('2. [Page 2](<https://example.com/page2>)');
-    expect(result).toContain('3. [Page 3](<https://example.com/page3>)');
+    assert.ok(result.includes('1. [Page 1](<https://example.com/page1>)'));
+    assert.ok(result.includes('2. [Page 2](<https://example.com/page2>)'));
+    assert.ok(result.includes('3. [Page 3](<https://example.com/page3>)'));
 
-    expect(result).toContain('# Page 1');
-    expect(result).toContain('**URL:** https://example.com/page1');
-    expect(result).toContain('Content 1');
+    assert.ok(result.includes('# Page 1'));
+    assert.ok(result.includes('**URL:** https://example.com/page1'));
+    assert.ok(result.includes('Content 1'));
   });
 
   test('handles empty content map', () => {
     const builder = new MarkdownBuilder();
     const result = builder.build();
 
-    expect(result).toContain('# No Content');
-    expect(result).toContain('No pages were successfully scraped.');
+    assert.ok(result.includes('# No Content'));
+    assert.ok(result.includes('No pages were successfully scraped.'));
   });
 
   test('handles special characters in titles', () => {
@@ -58,7 +59,7 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('[Title with \\[brackets\\] & symbols!]');
+    assert.ok(result.includes('[Title with \\[brackets\\] & symbols!]'));
   });
 
   test('handles empty title', () => {
@@ -70,8 +71,8 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('1. [https://example.com](<https://example.com>)');
-    expect(result).toContain('# https://example.com');
+    assert.ok(result.includes('1. [https://example.com](<https://example.com>)'));
+    assert.ok(result.includes('# https://example.com'));
   });
 
   test('handles multi-line content', () => {
@@ -89,7 +90,7 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('Line 1\nLine 2\n\nParagraph 2');
+    assert.ok(result.includes('Line 1\nLine 2\n\nParagraph 2'));
   });
 
   test('keeps a newline title on one line and preserves parentheses in the link', () => {
@@ -98,9 +99,9 @@ describe('Markdown Builder', () => {
     const result = builder.build();
     const tocLine = result.split('\n').find((line) => line.startsWith('1. '));
 
-    expect(tocLine).toBe('1. [Hello World \\[x\\]](<https://example.com/a)b%3Ec>)');
-    expect(result).toContain('# Hello World \\[x\\]');
-    expect(result).toContain('Body stays\nraw');
+    assert.equal(tocLine, '1. [Hello World \\[x\\]](<https://example.com/a)b%3Ec>)');
+    assert.ok(result.includes('# Hello World \\[x\\]'));
+    assert.ok(result.includes('Body stays\nraw'));
   });
 
   test('preserves page order', () => {
@@ -115,8 +116,8 @@ describe('Markdown Builder', () => {
     const result = builder.build();
     const tocSection = result.split('---')[0];
 
-    expect(tocSection).toContain('1. [Z Page]');
-    expect(tocSection).toContain('2. [A Page]');
-    expect(tocSection).toContain('3. [M Page]');
+    assert.ok(tocSection.includes('1. [Z Page]'));
+    assert.ok(tocSection.includes('2. [A Page]'));
+    assert.ok(tocSection.includes('3. [M Page]'));
   });
 });

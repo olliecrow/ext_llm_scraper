@@ -1,5 +1,8 @@
+import { describe, test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { installBackground } from '../src/background/controller.js';
 import { TaskManager } from '../src/background/taskManager.js';
+import { createChromeMock } from './chrome-mock.js';
 
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -21,6 +24,22 @@ function dispatch(listener, message, sender = { id: chrome.runtime.id }) {
   return response;
 }
 
+function lastCallArg(fn) {
+  const { calls } = fn.mock;
+  return calls[calls.length - 1].arguments[0];
+}
+
+function includesPartial(items, expected) {
+  return items.some((item) => {
+    try {
+      assert.partialDeepStrictEqual(item, expected);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
 describe('background controller', () => {
   let downloads;
   let messages;
@@ -28,19 +47,15 @@ describe('background controller', () => {
   beforeEach(() => {
     downloads = [];
     messages = [];
-    chrome.runtime.id = 'ext-test';
-    chrome.offscreen = {
-      createDocument: jest.fn(() => Promise.resolve()),
-      closeDocument: jest.fn(() => Promise.resolve()),
-    };
-    chrome.runtime.sendMessage.mockImplementation(async (message) => {
+    globalThis.chrome = createChromeMock();
+    chrome.runtime.sendMessage.mock.mockImplementation(async (message) => {
       messages.push(message);
       if (message?.action === 'create-download-url') {
         return { url: 'blob:https://download/markdown' };
       }
       return { ok: true };
     });
-    chrome.downloads.download.mockImplementation((options) => {
+    chrome.downloads.download.mock.mockImplementation((options) => {
       downloads.push(options);
       return Promise.resolve(1);
     });
@@ -77,7 +92,7 @@ describe('background controller', () => {
     };
 
     installBackground(chrome, { taskManager, scraper });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0].arguments[0];
     const started = dispatch(listener, {
       action: 'start',
       tabId: 7,
@@ -85,23 +100,23 @@ describe('background controller', () => {
       settings: { maxPages: 5, concurrency: 1, crawlMode: true },
     });
 
-    expect(started).toEqual({ success: true });
+    assert.deepEqual(started, { success: true });
     await waitFor(() => typeof releaseSecond === 'function');
 
     const stopped = dispatch(listener, { action: 'stop', tabId: 7 });
-    expect(stopped).toEqual({ success: true });
-    expect(taskManager.getTask(7)).not.toBeNull();
-    expect(downloads).toHaveLength(0);
+    assert.deepEqual(stopped, { success: true });
+    assert.notEqual(taskManager.getTask(7), null);
+    assert.equal(downloads.length, 0);
 
     releaseSecond();
     await waitFor(() => taskManager.getTask(7) === null);
 
-    expect(downloads).toHaveLength(1);
-    expect(downloads[0].url.startsWith('blob:')).toBe(true);
+    assert.equal(downloads.length, 1);
+    assert.equal(downloads[0].url.startsWith('blob:'), true);
     const created = messages.find((message) => message.action === 'create-download-url');
-    expect(created.content).toContain('first body');
-    expect(created.content).not.toContain('second body');
-    expect(chrome.offscreen.closeDocument).toHaveBeenCalled();
+    assert.ok(created.content.includes('first body'));
+    assert.equal(created.content.includes('second body'), false);
+    assert.ok(chrome.offscreen.closeDocument.mock.callCount() >= 1);
   });
 
   test('reports scraping complete after the last page', async () => {
@@ -120,7 +135,7 @@ describe('background controller', () => {
     };
 
     installBackground(chrome, { taskManager, scraper });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
     dispatch(listener, {
       action: 'start',
       tabId: 3,
@@ -130,12 +145,12 @@ describe('background controller', () => {
 
     await waitFor(() => taskManager.getTask(3) === null);
     const done = statuses.find((data) => data.done);
-    expect(done.processed).toBe(1);
-    expect(done.total).toBe(1);
-    expect(done.status.startsWith('Scraping complete')).toBe(true);
-    expect(done.status).toContain('.md');
-    expect(downloads).toHaveLength(1);
-    expect(downloads[0].url.startsWith('blob:')).toBe(true);
+    assert.equal(done.processed, 1);
+    assert.equal(done.total, 1);
+    assert.equal(done.status.startsWith('Scraping complete'), true);
+    assert.ok(done.status.includes('.md'));
+    assert.equal(downloads.length, 1);
+    assert.equal(downloads[0].url.startsWith('blob:'), true);
   });
 
   test('reports that no pages were saved', async () => {
@@ -148,7 +163,7 @@ describe('background controller', () => {
       taskManager,
       scraper: { scrape: async () => false },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
     dispatch(listener, {
       action: 'start',
       tabId: 4,
@@ -157,10 +172,8 @@ describe('background controller', () => {
     });
 
     await waitFor(() => statuses.some((data) => data.done));
-    expect(statuses).toContainEqual(
-      expect.objectContaining({ done: true, status: 'No pages saved' })
-    );
-    expect(downloads).toHaveLength(0);
+    assert.equal(includesPartial(statuses, { done: true, status: 'No pages saved' }), true);
+    assert.equal(downloads.length, 0);
   });
 
   test('rejects invalid control messages', () => {
@@ -168,25 +181,26 @@ describe('background controller', () => {
       taskManager: new TaskManager(),
       scraper: { scrape: async () => false },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
 
-    expect(dispatch(listener, null)).toEqual({
+    assert.deepEqual(dispatch(listener, null), {
       success: false,
       error: 'Invalid message payload',
     });
-    expect(dispatch(listener, { action: 'start', tabId: 'x' })).toEqual({
+    assert.deepEqual(dispatch(listener, { action: 'start', tabId: 'x' }), {
       success: false,
       error: 'Missing task parameters',
     });
-    expect(
-      dispatch(listener, { action: 'start', tabId: 1, startingUrl: 'chrome://extensions' }).success
-    ).toBe(false);
-    expect(dispatch(listener, { action: 'stop', tabId: 123 })).toEqual({
+    assert.equal(
+      dispatch(listener, { action: 'start', tabId: 1, startingUrl: 'chrome://extensions' }).success,
+      false
+    );
+    assert.deepEqual(dispatch(listener, { action: 'stop', tabId: 123 }), {
       success: false,
       error: 'No active task',
     });
-    expect(dispatch(listener, { action: 'ping' })).toEqual({ success: true });
-    expect(dispatch(listener, { action: 'nope' })).toEqual({
+    assert.deepEqual(dispatch(listener, { action: 'ping' }), { success: true });
+    assert.deepEqual(dispatch(listener, { action: 'nope' }), {
       success: false,
       error: 'Unknown action',
     });
@@ -198,9 +212,9 @@ describe('background controller', () => {
       taskManager,
       scraper: { scrape: () => new Promise(() => undefined) },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
 
-    expect(dispatch(listener, { action: 'status', tabId: 11 })).toEqual({
+    assert.deepEqual(dispatch(listener, { action: 'status', tabId: 11 }), {
       success: true,
       running: false,
       status: 'Ready',
@@ -215,9 +229,12 @@ describe('background controller', () => {
       settings: { maxPages: 4, concurrency: 1, crawlMode: false },
     });
 
-    expect(dispatch(listener, { action: 'status', tabId: 11 })).toEqual(
-      expect.objectContaining({ success: true, running: true, processed: 0, total: 4 })
-    );
+    assert.partialDeepStrictEqual(dispatch(listener, { action: 'status', tabId: 11 }), {
+      success: true,
+      running: true,
+      processed: 0,
+      total: 4,
+    });
   });
 
   test('does not start a task for a foreign sender', () => {
@@ -226,17 +243,17 @@ describe('background controller', () => {
       taskManager,
       scraper: { scrape: async () => false },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
     const response = dispatch(
       listener,
       { action: 'start', tabId: 1, startingUrl: 'https://example.com/a' },
       { id: 'other-extension' }
     );
 
-    expect(response).toEqual({ success: false, error: 'Rejected sender' });
-    expect(taskManager.getTask(1)).toBeNull();
+    assert.deepEqual(response, { success: false, error: 'Rejected sender' });
+    assert.equal(taskManager.getTask(1), null);
 
-    const connect = chrome.runtime.onConnect.addListener.mock.calls.at(-1)[0];
+    const connect = lastCallArg(chrome.runtime.onConnect.addListener);
     let listened = false;
     connect({
       name: 'popup',
@@ -248,11 +265,14 @@ describe('background controller', () => {
       },
       onDisconnect: { addListener: () => undefined },
     });
-    expect(listened).toBe(false);
+    assert.equal(listened, false);
   });
 
   test('reports a failed download and still closes the offscreen document', async () => {
-    chrome.downloads.download.mockRejectedValueOnce(new Error('disk full'));
+    chrome.downloads.download.mock.mockImplementationOnce(
+      () => Promise.reject(new Error('disk full')),
+      0
+    );
     const taskManager = new TaskManager();
     const statuses = [];
     taskManager.sendStatus = (_taskId, data) => {
@@ -267,7 +287,7 @@ describe('background controller', () => {
         },
       },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
     dispatch(listener, {
       action: 'start',
       tabId: 8,
@@ -276,20 +296,22 @@ describe('background controller', () => {
     });
 
     await waitFor(() => statuses.some((data) => data.done));
-    expect(statuses).toContainEqual(
-      expect.objectContaining({
+    assert.equal(
+      includesPartial(statuses, {
         done: true,
         status: 'Scraping finished, but the download failed',
         debug: 'disk full',
-      })
+      }),
+      true
     );
-    expect(chrome.offscreen.closeDocument).toHaveBeenCalled();
+    assert.ok(chrome.offscreen.closeDocument.mock.callCount() >= 1);
   });
 
   test('recreates the offscreen document when one is already open', async () => {
-    chrome.offscreen.createDocument
-      .mockRejectedValueOnce(new Error('Only a single offscreen document may be created'))
-      .mockResolvedValueOnce(undefined);
+    chrome.offscreen.createDocument.mock.mockImplementationOnce(
+      () => Promise.reject(new Error('Only a single offscreen document may be created')),
+      0
+    );
     const taskManager = new TaskManager();
     installBackground(chrome, {
       taskManager,
@@ -300,7 +322,7 @@ describe('background controller', () => {
         },
       },
     });
-    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
     dispatch(listener, {
       action: 'start',
       tabId: 9,
@@ -309,7 +331,15 @@ describe('background controller', () => {
     });
 
     await waitFor(() => taskManager.getTask(9) === null);
-    expect(chrome.offscreen.createDocument).toHaveBeenCalledTimes(2);
-    expect(downloads[0].url.startsWith('blob:')).toBe(true);
+    assert.equal(chrome.offscreen.createDocument.mock.callCount(), 2);
+    assert.equal(downloads[0].url.startsWith('blob:'), true);
+  });
+
+  test('registers listeners when the service worker loads', async () => {
+    const workerChrome = createChromeMock();
+    globalThis.chrome = workerChrome;
+    await import('../src/background/index.js');
+    assert.equal(workerChrome.runtime.onMessage.addListener.mock.callCount(), 1);
+    assert.equal(workerChrome.runtime.onConnect.addListener.mock.callCount(), 1);
   });
 });

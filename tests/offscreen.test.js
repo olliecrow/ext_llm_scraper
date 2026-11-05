@@ -1,3 +1,5 @@
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { handleOffscreenMessage } from '../src/offscreen/offscreen.js';
 
 describe('offscreen downloads', () => {
@@ -5,7 +7,7 @@ describe('offscreen downloads', () => {
     const revoked = [];
     const urlApi = {
       createObjectURL: (blob) => {
-        expect(blob).toBeInstanceOf(Blob);
+        assert.ok(blob instanceof Blob);
         return 'blob:local/markdown';
       },
       revokeObjectURL: (url) => {
@@ -13,32 +15,35 @@ describe('offscreen downloads', () => {
       },
     };
 
-    expect(
+    assert.deepEqual(
       handleOffscreenMessage(
         { action: 'create-download-url', content: '# Hi', mime: 'text/markdown' },
         { id: 'other' },
         'ext-id',
         urlApi
-      )
-    ).toEqual({ error: 'Rejected sender' });
+      ),
+      { error: 'Rejected sender' }
+    );
 
-    expect(
+    assert.deepEqual(
       handleOffscreenMessage(
         { action: 'create-download-url', content: '# Hi', mime: 'text/markdown' },
         { id: 'ext-id' },
         'ext-id',
         urlApi
-      )
-    ).toEqual({ url: 'blob:local/markdown' });
+      ),
+      { url: 'blob:local/markdown' }
+    );
 
-    expect(
+    assert.deepEqual(
       handleOffscreenMessage(
         { action: 'revoke-download-url', url: 'blob:local/markdown' },
         { id: 'ext-id' },
         'ext-id',
         urlApi
-      )
-    ).toEqual({ ok: true });
-    expect(revoked).toEqual(['blob:local/markdown']);
+      ),
+      { ok: true }
+    );
+    assert.deepEqual(revoked, ['blob:local/markdown']);
   });
 });

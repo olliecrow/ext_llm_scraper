@@ -1,3 +1,5 @@
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 
@@ -6,18 +8,19 @@ const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, 'manifest.json'),
 
 describe('extension manifest', () => {
   test('declares only the permissions used by the extension', () => {
-    expect(manifest.minimum_chrome_version).toBe('116');
-    expect(manifest.content_security_policy.extension_pages).toBe(
+    assert.equal(manifest.minimum_chrome_version, '116');
+    assert.equal(
+      manifest.content_security_policy.extension_pages,
       "script-src 'self'; object-src 'none'; base-uri 'none'"
     );
-    expect(manifest.permissions).toEqual(['activeTab', 'downloads', 'scripting']);
-    expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
-    expect(manifest.host_permissions).toBeUndefined();
-    expect(manifest).not.toHaveProperty('web_accessible_resources');
+    assert.deepEqual(manifest.permissions, ['activeTab', 'downloads', 'scripting']);
+    assert.deepEqual(manifest.optional_host_permissions, ['http://*/*', 'https://*/*']);
+    assert.equal(manifest.host_permissions, undefined);
+    assert.equal(Object.hasOwn(manifest, 'web_accessible_resources'), false);
   });
 
   test('references files included in the source tree', () => {
-    expect(fs.existsSync(path.join(rootDir, manifest.background.service_worker))).toBe(true);
-    expect(fs.existsSync(path.join(rootDir, manifest.action.default_popup))).toBe(true);
+    assert.equal(fs.existsSync(path.join(rootDir, manifest.background.service_worker)), true);
+    assert.equal(fs.existsSync(path.join(rootDir, manifest.action.default_popup)), true);
   });
 });

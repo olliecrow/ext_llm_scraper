@@ -9,7 +9,7 @@ Help you archive the page you are reading, or a limited set of pages on that sit
 ## Quick start
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm test
 npm run build
 ```

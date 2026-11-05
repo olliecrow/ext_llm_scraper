@@ -1,9 +1,39 @@
+import { describe, test, beforeEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
 import { PageScraper, extractPageContent } from '../src/background/scraper.js';
 import { TaskManager } from '../src/background/taskManager.js';
 import { TaskState } from '../src/background/taskState.js';
+import { createChromeMock } from './chrome-mock.js';
 
 const createTask = () =>
   new TaskState(1, 'https://example.com', { maxPages: 5, concurrency: 1, crawlMode: true });
+
+function queueExecuteScript(chromeApi, results) {
+  results.forEach((result, index) => {
+    chromeApi.scripting.executeScript.mock.mockImplementationOnce(
+      () => Promise.resolve(result),
+      index
+    );
+  });
+}
+
+function withDom(html, run) {
+  const dom = new JSDOM(
+    `<!doctype html><html><head><title>Original title</title></head><body>${html}</body></html>`,
+    {
+      url: 'https://example.com/',
+    }
+  );
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  try {
+    return run(dom);
+  } finally {
+    delete globalThis.window;
+    delete globalThis.document;
+  }
+}
 
 describe('PageScraper', () => {
   let scraper;
@@ -11,49 +41,53 @@ describe('PageScraper', () => {
   let task;
 
   beforeEach(() => {
+    globalThis.chrome = createChromeMock();
     taskManager = new TaskManager();
     scraper = new PageScraper(taskManager);
     task = createTask();
   });
 
   test('reserves start offsets before any timer fires', () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(1_000_000);
-    task.settings.delay = 1000;
-
-    const starts = [
-      scraper.reserveStart(task),
-      scraper.reserveStart(task),
-      scraper.reserveStart(task),
-    ];
-
-    expect(starts).toEqual([1_000_000, 1_001_000, 1_002_000]);
-    jest.useRealTimers();
+    mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1_000_000 });
+    try {
+      task.settings.delay = 1000;
+      const starts = [
+        scraper.reserveStart(task),
+        scraper.reserveStart(task),
+        scraper.reserveStart(task),
+      ];
+      assert.deepEqual(starts, [1_000_000, 1_001_000, 1_002_000]);
+    } finally {
+      mock.timers.reset();
+    }
   });
 
   test('does not count a failed tab as a saved page', async () => {
-    chrome.tabs.create.mockRejectedValueOnce(new Error('no tab'));
+    chrome.tabs.create.mock.mockImplementationOnce(() => Promise.reject(new Error('no tab')), 0);
 
     const result = await scraper.scrape(task, 'https://example.com/missing');
 
-    expect(result).toBe(false);
-    expect(task.processed).toBe(0);
-    expect(task.attempts).toBe(1);
-    expect(task.contentMap.size).toBe(0);
+    assert.equal(result, false);
+    assert.equal(task.processed, 0);
+    assert.equal(task.attempts, 1);
+    assert.equal(task.contentMap.size, 0);
   });
 
   test('reports one saved page after a failed attempt', async () => {
-    chrome.tabs.create.mockRejectedValueOnce(new Error('no tab'));
+    chrome.tabs.create.mock.mockImplementationOnce(() => Promise.reject(new Error('no tab')), 0);
     await scraper.scrape(task, 'https://example.com/missing');
     scraper.nextStart = 0;
-    chrome.scripting.executeScript.mockResolvedValueOnce([{ result: null }]).mockResolvedValueOnce([
-      {
-        result: {
-          title: 'Ok',
-          content: 'Body text',
-          links: [],
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [
+        {
+          result: {
+            title: 'Ok',
+            content: 'Body text',
+            links: [],
+          },
         },
-      },
+      ],
     ]);
     const statuses = [];
     taskManager.sendStatus = (_id, data) => {
@@ -62,51 +96,51 @@ describe('PageScraper', () => {
 
     const ok = await scraper.scrape(task, 'https://example.com/ok');
 
-    expect(ok).toBe(true);
-    expect(task.processed).toBe(1);
-    expect(task.attempts).toBe(2);
-    expect(statuses).toContainEqual(
-      expect.objectContaining({
-        status: 'Scraped 1 page(s)',
-        processed: 1,
-      })
+    assert.equal(ok, true);
+    assert.equal(task.processed, 1);
+    assert.equal(task.attempts, 2);
+    assert.ok(
+      statuses.some((status) => status.status === 'Scraped 1 page(s)' && status.processed === 1)
     );
   });
 
   test('returns false for invalid URLs', async () => {
     const result = await scraper.scrape(task, 'not-a-url');
-    expect(result).toBe(false);
-    expect(task.processed).toBe(0);
+    assert.equal(result, false);
+    assert.equal(task.processed, 0);
   });
 
   test('skips excluded extensions', async () => {
     const result = await scraper.scrape(task, 'https://example.com/file.pdf');
-    expect(result).toBe(false);
-    expect(task.processed).toBe(0);
+    assert.equal(result, false);
+    assert.equal(task.processed, 0);
   });
 
   test('extracts content and queues links', async () => {
-    chrome.scripting.executeScript.mockResolvedValueOnce([{ result: null }]).mockResolvedValueOnce([
-      {
-        result: {
-          url: 'https://example.com/about',
-          title: 'About',
-          content: 'About page content',
-          links: ['https://example.com/team', 'https://other.com/skip'],
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [
+        {
+          result: {
+            url: 'https://example.com/about',
+            title: 'About',
+            content: 'About page content',
+            links: ['https://example.com/team', 'https://other.com/skip'],
+          },
         },
-      },
+      ],
     ]);
 
     const result = await scraper.scrape(task, 'https://example.com/about');
 
-    expect(result).toBe(true);
-    expect(task.processed).toBe(1);
-    expect(task.contentMap.get('https://example.com/about')).toEqual({
+    assert.equal(result, true);
+    assert.equal(task.processed, 1);
+    assert.deepEqual(task.contentMap.get('https://example.com/about'), {
       title: 'About',
       textContent: 'About page content',
     });
-    expect(task.queue).toContain('https://example.com/team');
-    expect(task.queue).not.toContain('https://other.com/skip');
+    assert.ok(task.queue.includes('https://example.com/team'));
+    assert.equal(task.queue.includes('https://other.com/skip'), false);
   });
 
   test('does not scrape when task is already aborted', async () => {
@@ -114,20 +148,20 @@ describe('PageScraper', () => {
 
     const result = await scraper.scrape(task, 'https://example.com/about');
 
-    expect(result).toBe(false);
-    expect(chrome.tabs.create).not.toHaveBeenCalled();
+    assert.equal(result, false);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
   });
 
   test('stops before extraction when cancellation arrives during page load', async () => {
-    jest.spyOn(scraper, 'waitForTabLoad').mockImplementation(async () => {
+    mock.method(scraper, 'waitForTabLoad', async () => {
       task.abort = true;
     });
 
     const result = await scraper.scrape(task, 'https://example.com/about');
 
-    expect(result).toBe(false);
-    expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    assert.equal(result, false);
+    assert.equal(chrome.scripting.executeScript.mock.callCount(), 0);
+    assert.deepEqual(chrome.tabs.remove.mock.calls[0].arguments, [1]);
   });
 
   test('queues the www pair and standard ports, and drops other hosts and ports', () => {
@@ -141,12 +175,12 @@ describe('PageScraper', () => {
       'http://example.com/plain',
     ]);
 
-    expect(task.queue).toContain('https://www.example.com/about');
-    expect(task.queue).toContain('http://example.com/plain');
-    expect(task.queue.filter((url) => url === 'https://example.com/explicit')).toHaveLength(1);
-    expect(task.queue).not.toContain('https://other.example.com/');
-    expect(task.queue).not.toContain('https://other.com/');
-    expect(task.queue).not.toContain('https://example.com:8443/admin');
+    assert.ok(task.queue.includes('https://www.example.com/about'));
+    assert.ok(task.queue.includes('http://example.com/plain'));
+    assert.equal(task.queue.filter((url) => url === 'https://example.com/explicit').length, 1);
+    assert.equal(task.queue.includes('https://other.example.com/'), false);
+    assert.equal(task.queue.includes('https://other.com/'), false);
+    assert.equal(task.queue.includes('https://example.com:8443/admin'), false);
 
     const wwwTask = new TaskState(2, 'https://www.example.com/', {
       maxPages: 5,
@@ -156,8 +190,8 @@ describe('PageScraper', () => {
       'https://example.com/about',
       'https://blog.example.com/no',
     ]);
-    expect(wwwTask.queue).toContain('https://example.com/about');
-    expect(wwwTask.queue).not.toContain('https://blog.example.com/no');
+    assert.ok(wwwTask.queue.includes('https://example.com/about'));
+    assert.equal(wwwTask.queue.includes('https://blog.example.com/no'), false);
 
     const custom = new TaskState(3, 'https://example.com:8443/', {
       maxPages: 5,
@@ -168,9 +202,9 @@ describe('PageScraper', () => {
       'https://example.com:8443/admin',
       'http://example.com:8443/also',
     ]);
-    expect(custom.queue).toContain('https://example.com:8443/admin');
-    expect(custom.queue).toContain('http://example.com:8443/also');
-    expect(custom.queue).not.toContain('https://example.com/home');
+    assert.ok(custom.queue.includes('https://example.com:8443/admin'));
+    assert.ok(custom.queue.includes('http://example.com:8443/also'));
+    assert.equal(custom.queue.includes('https://example.com/home'), false);
   });
 
   test('queues only valid same-domain links when crawl mode is enabled', () => {
@@ -183,56 +217,57 @@ describe('PageScraper', () => {
       null,
     ]);
 
-    expect(task.queue).toContain('https://example.com/team');
-    expect(task.queue.filter((url) => url === 'https://example.com/team')).toHaveLength(1);
-    expect(task.queue).not.toContain('https://example.com/report.pdf');
-    expect(task.queue).not.toContain('https://other.com/skip');
+    assert.ok(task.queue.includes('https://example.com/team'));
+    assert.equal(task.queue.filter((url) => url === 'https://example.com/team').length, 1);
+    assert.equal(task.queue.includes('https://example.com/report.pdf'), false);
+    assert.equal(task.queue.includes('https://other.com/skip'), false);
   });
 });
 
 describe('extractPageContent', () => {
-  afterEach(() => {
-    delete window.Readability;
-  });
-
   test('uses Readability when it returns useful text', () => {
-    document.body.innerHTML = `
+    withDom(
+      `
       <main>Fallback content</main>
       <a href="https://example.com/a">A</a>
       <a href="mailto:test@example.com">Mail</a>
-    `;
-    document.title = 'Original title';
-    window.Readability = class {
-      parse() {
-        return {
-          title: 'Readable title',
-          textContent: 'Readable content with enough text to use. '.repeat(5),
+    `,
+      () => {
+        window.Readability = class {
+          parse() {
+            return {
+              title: 'Readable title',
+              textContent: 'Readable content with enough text to use. '.repeat(5),
+            };
+          }
         };
+
+        const result = extractPageContent();
+
+        assert.equal(result.title, 'Readable title');
+        assert.ok(result.content.includes('Readable content with enough text to use.'));
+        assert.deepEqual(result.links, ['https://example.com/a']);
       }
-    };
-
-    const result = extractPageContent();
-
-    expect(result.title).toBe('Readable title');
-    expect(result.content).toContain('Readable content with enough text to use.');
-    expect(result.links).toEqual(['https://example.com/a']);
+    );
   });
 
   test('falls back to main page text when Readability is missing', () => {
-    document.body.innerHTML = '<main></main>';
-    document.querySelector('main').innerText = 'Main content '.repeat(30);
+    withDom('<main></main>', () => {
+      document.querySelector('main').innerText = 'Main content '.repeat(30);
 
-    const result = extractPageContent();
+      const result = extractPageContent();
 
-    expect(result.content).toContain('Main content');
+      assert.ok(result.content.includes('Main content'));
+    });
   });
 
   test('uses body text as the last content fallback', () => {
-    document.body.innerHTML = '<section>No main content</section>';
-    document.body.innerText = 'Body text fallback';
+    withDom('<section>No main content</section>', () => {
+      document.body.innerText = 'Body text fallback';
 
-    const result = extractPageContent();
+      const result = extractPageContent();
 
-    expect(result.content).toBe('Body text fallback');
+      assert.equal(result.content, 'Body text fallback');
+    });
   });
 });

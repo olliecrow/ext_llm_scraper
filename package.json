@@ -4,9 +4,9 @@
   "description": "Chrome extension for scraping webpage content into Markdown format",
   "type": "module",
   "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test": "node --test --test-concurrency=2 tests/*.test.js",
+    "test:watch": "node --test --watch --test-concurrency=2 tests/*.test.js",
+    "test:coverage": "node --test --test-concurrency=2 --experimental-test-coverage --test-coverage-include=src/background/**/*.js --test-coverage-include=src/shared/**/*.js --test-coverage-include=src/popup/popup.js --test-coverage-exclude=src/lib/** --test-coverage-lines=80 --test-coverage-functions=80 --test-coverage-branches=70 tests/*.test.js",
     "lint": "eslint \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\"",
     "lint:fix": "eslint \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\" --fix",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.js\"",
@@ -26,49 +26,9 @@
   ],
   "license": "Apache-2.0",
   "devDependencies": {
-    "@babel/core": "^7.28.3",
-    "@babel/preset-env": "^7.28.3",
-    "archiver": "^6.0.1",
-    "babel-jest": "^30.2.0",
-    "eslint": "^8.56.0",
-    "eslint-config-prettier": "^9.1.0",
-    "jest": "^30.2.0",
-    "jest-environment-jsdom": "^30.2.0",
-    "prettier": "^3.1.1"
-  },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "transform": {
-      "^.+\\.js$": "babel-jest"
-    },
-    "moduleFileExtensions": [
-      "js",
-      "json"
-    ],
-    "collectCoverageFrom": [
-      "src/background/controller.js",
-      "src/background/markdownBuilder.js",
-      "src/background/scraper.js",
-      "src/background/taskManager.js",
-      "src/background/taskState.js",
-      "src/shared/config.js",
-      "src/shared/utils.js",
-      "!src/**/*.test.js"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 70,
-        "functions": 80,
-        "lines": 80,
-        "statements": 80
-      }
-    },
-    "testMatch": [
-      "**/tests/**/*.test.js",
-      "**/__tests__/**/*.test.js"
-    ],
-    "setupFilesAfterEnv": [
-      "<rootDir>/tests/setup.js"
-    ]
+    "eslint": "8.57.1",
+    "eslint-config-prettier": "9.1.2",
+    "jsdom": "30.1.3",
+    "prettier": "3.6.2"
   }
 }

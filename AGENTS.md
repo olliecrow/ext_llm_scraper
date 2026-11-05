@@ -16,7 +16,7 @@
 
 ## Development
 
-- Use the package scripts in `package.json`. Run `npm run check:all` for material source changes and `npm run build` for packaging or manifest changes.
+- Install dependencies with `npm ci --ignore-scripts`. Use the package scripts in `package.json`. Run `npm run check:all` for material source changes and `npm run build` for packaging or manifest changes.
 - Use a manual Chrome smoke test for popup, cancellation, crawl, and Markdown download behavior when those browser-dependent paths change.
 - Run `npm audit --audit-level=moderate` after dependency or lockfile changes.
 - Keep `README.md` current for user-visible behavior, permissions, setup, and testing.

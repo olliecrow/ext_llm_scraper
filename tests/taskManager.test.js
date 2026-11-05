@@ -1,3 +1,5 @@
+import { describe, test, mock } from 'node:test';
+import assert from 'node:assert/strict';
 import { TaskManager } from '../src/background/taskManager.js';
 
 describe('TaskManager', () => {
@@ -5,20 +7,21 @@ describe('TaskManager', () => {
     const manager = new TaskManager();
     const task = manager.createTask(10, 'https://example.com', {});
 
-    expect(manager.getTask(10)).toBe(task);
-    expect(() => manager.createTask(10, 'https://example.com/again', {})).toThrow(
-      'A task already exists'
+    assert.equal(manager.getTask(10), task);
+    assert.throws(
+      () => manager.createTask(10, 'https://example.com/again', {}),
+      /A task already exists/
     );
 
     manager.removeTask(10);
-    expect(manager.getTask(10)).toBeNull();
+    assert.equal(manager.getTask(10), null);
   });
 
   test('sends status to subscribers and removes inactive ports', () => {
     const manager = new TaskManager();
-    const activePort = { postMessage: jest.fn() };
+    const activePort = { postMessage: mock.fn() };
     const inactivePort = {
-      postMessage: jest.fn(() => {
+      postMessage: mock.fn(() => {
         throw new Error('Port closed');
       }),
     };
@@ -28,13 +31,13 @@ describe('TaskManager', () => {
     manager.sendStatus(1, { status: 'Working' });
     manager.sendStatus(1, { status: 'Still working' });
 
-    expect(activePort.postMessage).toHaveBeenCalledTimes(2);
-    expect(inactivePort.postMessage).toHaveBeenCalledTimes(1);
+    assert.equal(activePort.postMessage.mock.callCount(), 2);
+    assert.equal(inactivePort.postMessage.mock.callCount(), 1);
   });
 
   test('unsubscribes a port from every task', () => {
     const manager = new TaskManager();
-    const port = { postMessage: jest.fn() };
+    const port = { postMessage: mock.fn() };
 
     manager.subscribe(1, port);
     manager.subscribe(2, port);
@@ -42,7 +45,7 @@ describe('TaskManager', () => {
     manager.sendStatus(1, { status: 'One' });
     manager.sendStatus(2, { status: 'Two' });
 
-    expect(port.postMessage).not.toHaveBeenCalled();
+    assert.equal(port.postMessage.mock.callCount(), 0);
   });
 
   test('cleanup removes the task', () => {
@@ -51,14 +54,15 @@ describe('TaskManager', () => {
 
     manager.cleanupTask(1);
 
-    expect(manager.getTask(1)).toBeNull();
+    assert.equal(manager.getTask(1), null);
   });
 
   test('rejects unsupported starting URLs', () => {
     const manager = new TaskManager();
 
-    expect(() => manager.createTask(1, 'chrome://extensions', {})).toThrow(
-      'Starting URL must use HTTP or HTTPS'
+    assert.throws(
+      () => manager.createTask(1, 'chrome://extensions', {}),
+      /Starting URL must use HTTP or HTTPS/
     );
   });
 });

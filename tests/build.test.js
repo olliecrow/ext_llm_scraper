@@ -1,3 +1,5 @@
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
@@ -10,8 +12,8 @@ describe('extension build', () => {
   test('copies the offscreen page into dist', async () => {
     await execFileAsync('node', ['scripts/build.js'], { cwd: rootDir });
 
-    expect(fs.existsSync(path.join(rootDir, 'dist/src/offscreen/offscreen.html'))).toBe(true);
-    expect(fs.existsSync(path.join(rootDir, 'dist/src/offscreen/offscreen.js'))).toBe(true);
-    expect(fs.existsSync(path.join(rootDir, 'dist/manifest.json'))).toBe(true);
+    assert.equal(fs.existsSync(path.join(rootDir, 'dist/src/offscreen/offscreen.html')), true);
+    assert.equal(fs.existsSync(path.join(rootDir, 'dist/src/offscreen/offscreen.js')), true);
+    assert.equal(fs.existsSync(path.join(rootDir, 'dist/manifest.json')), true);
   });
 });
