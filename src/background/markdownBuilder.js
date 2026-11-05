@@ -53,7 +53,9 @@ export class MarkdownBuilder {
     let toc = '# Table of Contents\n\n';
 
     this.pages.forEach((page, index) => {
-      toc += `${index + 1}. [${this.escapeMarkdown(page.title)}](${page.url})\n`;
+      const title = this.escapeMarkdown(page.title);
+      const destination = String(page.url).replace(/>/g, '%3E');
+      toc += `${index + 1}. [${title}](<${destination}>)\n`;
     });
 
     toc += '\n---\n\n';
@@ -88,6 +90,8 @@ export class MarkdownBuilder {
     }
     // Only escape characters that would break markdown structure
     return text
+      .replace(/\r\n/g, ' ')
+      .replace(/[\r\n]/g, ' ')
       .replace(/\\/g, '\\\\')
       .replace(/\*/g, '\\*')
       .replace(/_/g, '\\_')

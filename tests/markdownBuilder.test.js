@@ -12,7 +12,7 @@ describe('Markdown Builder', () => {
     const result = builder.build();
 
     expect(result).toContain('# Table of Contents');
-    expect(result).toContain('1. [Example Page](https://example.com)');
+    expect(result).toContain('1. [Example Page](<https://example.com>)');
     expect(result).toContain('# Example Page');
     expect(result).toContain('**URL:** https://example.com');
     expect(result).toContain('This is the content.');
@@ -29,9 +29,9 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('1. [Page 1](https://example.com/page1)');
-    expect(result).toContain('2. [Page 2](https://example.com/page2)');
-    expect(result).toContain('3. [Page 3](https://example.com/page3)');
+    expect(result).toContain('1. [Page 1](<https://example.com/page1>)');
+    expect(result).toContain('2. [Page 2](<https://example.com/page2>)');
+    expect(result).toContain('3. [Page 3](<https://example.com/page3>)');
 
     expect(result).toContain('# Page 1');
     expect(result).toContain('**URL:** https://example.com/page1');
@@ -70,7 +70,7 @@ describe('Markdown Builder', () => {
     builder.addFromContentMap(contentMap);
     const result = builder.build();
 
-    expect(result).toContain('1. [https://example.com](https://example.com)');
+    expect(result).toContain('1. [https://example.com](<https://example.com>)');
     expect(result).toContain('# https://example.com');
   });
 
@@ -90,6 +90,17 @@ describe('Markdown Builder', () => {
     const result = builder.build();
 
     expect(result).toContain('Line 1\nLine 2\n\nParagraph 2');
+  });
+
+  test('keeps a newline title on one line and preserves parentheses in the link', () => {
+    const builder = new MarkdownBuilder();
+    builder.addPage('https://example.com/a)b>c', 'Hello\nWorld [x]', 'Body stays\nraw');
+    const result = builder.build();
+    const tocLine = result.split('\n').find((line) => line.startsWith('1. '));
+
+    expect(tocLine).toBe('1. [Hello World \\[x\\]](<https://example.com/a)b%3Ec>)');
+    expect(result).toContain('# Hello World \\[x\\]');
+    expect(result).toContain('Body stays\nraw');
   });
 
   test('preserves page order', () => {
