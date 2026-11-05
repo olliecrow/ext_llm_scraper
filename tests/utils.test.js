@@ -179,6 +179,12 @@ describe('SPA hash routes', () => {
 });
 
 describe('Filename Generation', () => {
+  test('makes an IPv6 hostname safe for download filenames', () => {
+    const host = new URL(`http://[${':'.repeat(2)}1]/`).hostname;
+    assert.match(generateFilename(host), /^[A-Za-z0-9_-]+_.*\.md$/);
+    assert.match(generateFilename(''), /^scraped-pages_/);
+  });
+
   test('generates filename with domain and timestamp', () => {
     const domain = 'example.com';
     const filename = generateFilename(domain);

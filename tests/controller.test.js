@@ -166,6 +166,34 @@ describe('background controller', () => {
     assert.equal(downloads[0].url.startsWith('blob:'), true);
   });
 
+  test('retries a rejected filename with the same captured blob', async () => {
+    chrome.downloads.download.mock.mockImplementationOnce(
+      () => Promise.reject(new Error('Invalid filename')),
+      0
+    );
+    const taskManager = new TaskManager();
+    const { processTask } = installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task, url) {
+          task.addContent(url, { title: 'Kept', textContent: 'Captured text survives' });
+          return true;
+        },
+      },
+    });
+    const task = taskManager.createTask(60, 'https://example.com/', { maxPages: 1 });
+    await processTask(task);
+    assert.equal(chrome.downloads.download.mock.callCount(), 2);
+    const [first, second] = chrome.downloads.download.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(first.url, second.url);
+    assert.equal(second.filename, 'scraped-pages.md');
+    assert.ok((await downloadedText()).includes('Captured text survives'));
+    assert.equal(
+      messages.filter((message) => message.action === 'append-download-chunk').length,
+      1
+    );
+  });
+
   test('reports that no pages were saved', async () => {
     const taskManager = new TaskManager();
     const statuses = [];

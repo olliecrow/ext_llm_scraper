@@ -267,5 +267,8 @@ export function splitText(text, size) {
  */
 export function generateFilename(domain) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${domain}_${timestamp}.md`;
+  const safeDomain = String(domain || '')
+    .replace(/[^A-Za-z0-9.-]/g, '_')
+    .slice(0, 180);
+  return `${safeDomain || 'scraped-pages'}_${timestamp}.md`;
 }

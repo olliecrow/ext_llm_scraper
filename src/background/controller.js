@@ -102,7 +102,7 @@ export function installBackground(chromeApi, services = {}) {
   }
 
   async function performDownload(task, content) {
-    const filename = generateFilename(task.startingDomain);
+    let filename = generateFilename(task.startingDomain);
     const id = crypto.randomUUID();
     try {
       await ensureOffscreenDocument(chromeApi);
@@ -125,11 +125,15 @@ export function installBackground(chromeApi, services = {}) {
         throw new Error(response?.error || 'Download URL was not created');
       }
 
-      await chromeApi.downloads.download({
-        url: response.url,
-        filename,
-        saveAs: false,
-      });
+      try {
+        await chromeApi.downloads.download({ url: response.url, filename, saveAs: false });
+      } catch (error) {
+        if (!/filename/i.test(error?.message || '')) {
+          throw error;
+        }
+        filename = 'scraped-pages.md';
+        await chromeApi.downloads.download({ url: response.url, filename, saveAs: false });
+      }
       await chromeApi.runtime
         .sendMessage({ action: 'revoke-download-url', url: response.url })
         .catch(() => undefined);
