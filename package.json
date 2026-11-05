@@ -29,7 +29,8 @@
     "node": ">=22"
   },
   "overrides": {
-    "minimatch": "11.0.3"
+    "minimatch": "11.0.3",
+    "parse5": "8.0.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
