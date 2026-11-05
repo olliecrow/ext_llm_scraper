@@ -139,6 +139,25 @@ describe('popup controls', () => {
     assert.equal(typeof request[1], 'function');
   });
 
+  test('asks only for the address itself on an IP host', async () => {
+    sendMessageResponse(chromeApi, { success: true });
+    for (const [url, host] of [
+      ['http://127.0.0.1:8080/a', '127.0.0.1'],
+      ['http://[::1]:8080/a', '[::1]'],
+    ]) {
+      chromeApi.permissions.request.mock.resetCalls();
+      chromeApi.tabs.query.mock.mockImplementation(() =>
+        Promise.resolve([{ id: 5, active: true, url }])
+      );
+      const dom = await loadPopup(chromeApi);
+      dom.window.document.getElementById('startButton').click();
+      await flushPopupClick();
+
+      const request = chromeApi.permissions.request.mock.calls[0].arguments;
+      assert.deepEqual(request[0], { origins: [`http://${host}/*`, `https://${host}/*`] });
+    }
+  });
+
   test('disables start on a non-http page', async () => {
     chromeApi.tabs.query.mock.mockImplementation(() =>
       Promise.resolve([{ id: 1, active: true, url: 'chrome://extensions' }])

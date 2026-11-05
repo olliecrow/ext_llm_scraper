@@ -22,6 +22,10 @@ export function initPopup(doc, chromeApi) {
 
   function siteOrigins(url) {
     const { hostname } = new URL(url);
+    // Chrome rejects a www pattern on an IP address, and the whole request fails.
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.startsWith('[')) {
+      return [`http://${hostname}/*`, `https://${hostname}/*`];
+    }
     const bare = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
     const hosts = hostname === bare ? [hostname, `www.${hostname}`] : [hostname, bare];
     return hosts.flatMap((host) => [`http://${host}/*`, `https://${host}/*`]);
