@@ -6,6 +6,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, 'manifest.json'),
 
 describe('extension manifest', () => {
   test('declares only the permissions used by the extension', () => {
+    expect(manifest.minimum_chrome_version).toBe('116');
     expect(manifest.permissions).toEqual(['downloads', 'scripting']);
     expect(manifest.host_permissions).toEqual(['http://*/*', 'https://*/*']);
     expect(manifest).not.toHaveProperty('web_accessible_resources');

@@ -23,9 +23,22 @@ function dispatch(listener, message) {
 
 describe('background controller', () => {
   let downloads;
+  let messages;
 
   beforeEach(() => {
     downloads = [];
+    messages = [];
+    chrome.offscreen = {
+      createDocument: jest.fn(() => Promise.resolve()),
+      closeDocument: jest.fn(() => Promise.resolve()),
+    };
+    chrome.runtime.sendMessage.mockImplementation(async (message) => {
+      messages.push(message);
+      if (message?.action === 'create-download-url') {
+        return { url: 'blob:https://download/markdown' };
+      }
+      return { ok: true };
+    });
     chrome.downloads.download.mockImplementation((options) => {
       downloads.push(options);
       return Promise.resolve(1);
@@ -83,11 +96,11 @@ describe('background controller', () => {
     await waitFor(() => taskManager.getTask(7) === null);
 
     expect(downloads).toHaveLength(1);
-    const content = decodeURIComponent(
-      downloads[0].url.slice('data:text/markdown;charset=utf-8,'.length)
-    );
-    expect(content).toContain('first body');
-    expect(content).not.toContain('second body');
+    expect(downloads[0].url.startsWith('blob:')).toBe(true);
+    const created = messages.find((message) => message.action === 'create-download-url');
+    expect(created.content).toContain('first body');
+    expect(created.content).not.toContain('second body');
+    expect(chrome.offscreen.closeDocument).toHaveBeenCalled();
   });
 
   test('reports scraping complete after the last page', async () => {
@@ -115,15 +128,13 @@ describe('background controller', () => {
     });
 
     await waitFor(() => taskManager.getTask(3) === null);
-    expect(statuses).toContainEqual(
-      expect.objectContaining({
-        done: true,
-        status: 'Scraping complete',
-        processed: 1,
-        total: 1,
-      })
-    );
+    const done = statuses.find((data) => data.done);
+    expect(done.processed).toBe(1);
+    expect(done.total).toBe(1);
+    expect(done.status.startsWith('Scraping complete')).toBe(true);
+    expect(done.status).toContain('.md');
     expect(downloads).toHaveLength(1);
+    expect(downloads[0].url.startsWith('blob:')).toBe(true);
   });
 
   test('reports that no pages were saved', async () => {
@@ -178,5 +189,67 @@ describe('background controller', () => {
       success: false,
       error: 'Unknown action',
     });
+  });
+
+  test('reports a failed download and still closes the offscreen document', async () => {
+    chrome.downloads.download.mockRejectedValueOnce(new Error('disk full'));
+    const taskManager = new TaskManager();
+    const statuses = [];
+    taskManager.sendStatus = (_taskId, data) => {
+      statuses.push(data);
+    };
+    installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task) {
+          task.addContent('https://example.com/fail', { title: 'T', textContent: 'body' });
+          return true;
+        },
+      },
+    });
+    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    dispatch(listener, {
+      action: 'start',
+      tabId: 8,
+      startingUrl: 'https://example.com/fail',
+      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+    });
+
+    await waitFor(() => statuses.some((data) => data.done));
+    expect(statuses).toContainEqual(
+      expect.objectContaining({
+        done: true,
+        status: 'Scraping finished, but the download failed',
+        debug: 'disk full',
+      })
+    );
+    expect(chrome.offscreen.closeDocument).toHaveBeenCalled();
+  });
+
+  test('recreates the offscreen document when one is already open', async () => {
+    chrome.offscreen.createDocument
+      .mockRejectedValueOnce(new Error('Only a single offscreen document may be created'))
+      .mockResolvedValueOnce(undefined);
+    const taskManager = new TaskManager();
+    installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task, url) {
+          task.addContent(url, { title: 'T', textContent: 'body' });
+          return true;
+        },
+      },
+    });
+    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    dispatch(listener, {
+      action: 'start',
+      tabId: 9,
+      startingUrl: 'https://example.com/retry',
+      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+    });
+
+    await waitFor(() => taskManager.getTask(9) === null);
+    expect(chrome.offscreen.createDocument).toHaveBeenCalledTimes(2);
+    expect(downloads[0].url.startsWith('blob:')).toBe(true);
   });
 });

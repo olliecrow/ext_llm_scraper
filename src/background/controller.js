@@ -3,6 +3,14 @@ import { PageScraper } from './scraper.js';
 import { MarkdownBuilder } from './markdownBuilder.js';
 import { generateFilename } from '../shared/utils.js';
 
+const OFFSCREEN_OPTIONS = {
+  url: 'src/offscreen/offscreen.html',
+  reasons: ['BLOBS'],
+  justification: 'Create a local blob URL so the Markdown download is not limited by a data URL.',
+};
+
+let downloadChain = Promise.resolve();
+
 export function installBackground(chromeApi, services = {}) {
   const taskManager = services.taskManager ?? new TaskManager();
   const scraper = services.scraper ?? new PageScraper(taskManager);
@@ -57,13 +65,24 @@ export function installBackground(chromeApi, services = {}) {
     if (saved > 0) {
       const builder = new MarkdownBuilder();
       builder.addFromContentMap(task.contentMap);
-      await attemptDownload(task, builder.build());
-      taskManager.sendStatus(task.taskId, {
-        done: true,
-        status: task.abort ? `Stopped. Saved ${saved} page(s).` : 'Scraping complete',
-        processed: saved,
-        total: saved,
-      });
+      const result = await attemptDownload(task, builder.build());
+      if (result.ok) {
+        const base = task.abort ? `Stopped. Saved ${saved} page(s).` : 'Scraping complete';
+        taskManager.sendStatus(task.taskId, {
+          done: true,
+          status: `${base} ${result.filename}`,
+          processed: saved,
+          total: saved,
+        });
+      } else {
+        taskManager.sendStatus(task.taskId, {
+          done: true,
+          status: 'Scraping finished, but the download failed',
+          debug: result.error,
+          processed: saved,
+          total: saved,
+        });
+      }
     } else {
       taskManager.sendStatus(task.taskId, {
         done: true,
@@ -77,26 +96,58 @@ export function installBackground(chromeApi, services = {}) {
     taskManager.cleanupTask(task.taskId);
   }
 
-  async function attemptDownload(task, content) {
+  async function openOffscreen() {
     try {
-      const filename = generateFilename(task.startingDomain);
-      const dataUrl = `data:text/markdown;charset=utf-8,${encodeURIComponent(content)}`;
+      await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
+    } catch (_) {
+      await chromeApi.offscreen.closeDocument();
+      await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
+    }
+  }
+
+  async function performDownload(task, content) {
+    const filename = generateFilename(task.startingDomain);
+    let opened = false;
+    try {
+      await openOffscreen();
+      opened = true;
+      const response = await chromeApi.runtime.sendMessage({
+        action: 'create-download-url',
+        content,
+        mime: 'text/markdown',
+      });
+      if (!response?.url || !String(response.url).startsWith('blob:')) {
+        throw new Error(response?.error || 'Download URL was not created');
+      }
 
       await chromeApi.downloads.download({
-        url: dataUrl,
+        url: response.url,
         filename,
         saveAs: false,
       });
-
+      await chromeApi.runtime
+        .sendMessage({ action: 'revoke-download-url', url: response.url })
+        .catch(() => undefined);
       taskManager.sendStatus(task.taskId, {
         debug: `Download started: ${filename}`,
       });
+      return { ok: true, filename };
     } catch (error) {
-      console.warn('Download failed:', error.message);
-      taskManager.sendStatus(task.taskId, {
-        debug: `Download failed: ${error.message}`,
-      });
+      return { ok: false, error: error?.message || 'Download failed' };
+    } finally {
+      if (opened) {
+        await chromeApi.offscreen.closeDocument().catch(() => undefined);
+      }
     }
+  }
+
+  function attemptDownload(task, content) {
+    const run = downloadChain.then(() => performDownload(task, content));
+    downloadChain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   }
 
   chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -139,6 +190,10 @@ export function installBackground(chromeApi, services = {}) {
       } else {
         sendResponse({ success: false, error: 'No active task' });
       }
+      return false;
+    }
+
+    if (message.action === 'create-download-url' || message.action === 'revoke-download-url') {
       return false;
     }
 
