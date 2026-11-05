@@ -13,9 +13,9 @@ async function waitFor(predicate) {
   throw new Error('condition was not met');
 }
 
-function dispatch(listener, message) {
+function dispatch(listener, message, sender = { id: chrome.runtime.id }) {
   let response;
-  listener(message, {}, (value) => {
+  listener(message, sender, (value) => {
     response = value;
   });
   return response;
@@ -28,6 +28,7 @@ describe('background controller', () => {
   beforeEach(() => {
     downloads = [];
     messages = [];
+    chrome.runtime.id = 'ext-test';
     chrome.offscreen = {
       createDocument: jest.fn(() => Promise.resolve()),
       closeDocument: jest.fn(() => Promise.resolve()),
@@ -189,6 +190,37 @@ describe('background controller', () => {
       success: false,
       error: 'Unknown action',
     });
+  });
+
+  test('does not start a task for a foreign sender', () => {
+    const taskManager = new TaskManager();
+    installBackground(chrome, {
+      taskManager,
+      scraper: { scrape: async () => false },
+    });
+    const listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    const response = dispatch(
+      listener,
+      { action: 'start', tabId: 1, startingUrl: 'https://example.com/a' },
+      { id: 'other-extension' }
+    );
+
+    expect(response).toEqual({ success: false, error: 'Rejected sender' });
+    expect(taskManager.getTask(1)).toBeNull();
+
+    const connect = chrome.runtime.onConnect.addListener.mock.calls.at(-1)[0];
+    let listened = false;
+    connect({
+      name: 'popup',
+      sender: { id: 'other-extension' },
+      onMessage: {
+        addListener: () => {
+          listened = true;
+        },
+      },
+      onDisconnect: { addListener: () => undefined },
+    });
+    expect(listened).toBe(false);
   });
 
   test('reports a failed download and still closes the offscreen document', async () => {

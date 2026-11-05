@@ -150,7 +150,12 @@ export function installBackground(chromeApi, services = {}) {
     return run;
   }
 
-  chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (sender?.id !== chromeApi.runtime.id) {
+      sendResponse({ success: false, error: 'Rejected sender' });
+      return false;
+    }
+
     if (!message || typeof message !== 'object') {
       sendResponse({ success: false, error: 'Invalid message payload' });
       return false;
@@ -207,7 +212,7 @@ export function installBackground(chromeApi, services = {}) {
   });
 
   chromeApi.runtime.onConnect.addListener((port) => {
-    if (port.name !== 'popup') {
+    if (port.sender?.id !== chromeApi.runtime.id || port.name !== 'popup') {
       return;
     }
 

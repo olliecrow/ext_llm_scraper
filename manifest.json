@@ -20,6 +20,6 @@
     "default_popup": "src/popup/popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
   }
 }
