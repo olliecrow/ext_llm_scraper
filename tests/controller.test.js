@@ -199,6 +199,8 @@ describe('background controller', () => {
       success: false,
       error: 'No active task',
     });
+    assert.equal(dispatch(listener, { action: 'parse-html', html: '<p>Hi</p>' }), undefined);
+    assert.equal(dispatch(listener, { action: 'create-download-url' }), undefined);
     assert.deepEqual(dispatch(listener, { action: 'ping' }), { success: true });
     assert.deepEqual(dispatch(listener, { action: 'nope' }), {
       success: false,

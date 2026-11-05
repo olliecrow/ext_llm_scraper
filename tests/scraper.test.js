@@ -42,6 +42,7 @@ describe('PageScraper', () => {
 
   beforeEach(() => {
     globalThis.chrome = createChromeMock();
+    globalThis.fetch = mock.fn(() => Promise.reject(new Error('no static fetch')));
     taskManager = new TaskManager();
     scraper = new PageScraper(taskManager);
     task = createTask();
@@ -221,6 +222,102 @@ describe('PageScraper', () => {
     assert.equal(task.queue.filter((url) => url === 'https://example.com/team').length, 1);
     assert.equal(task.queue.includes('https://example.com/report.pdf'), false);
     assert.equal(task.queue.includes('https://other.com/skip'), false);
+  });
+
+  test('fetches a long article without opening a tab', async () => {
+    const sentence = 'Alpha beta gamma delta epsilon. ';
+    const html = `<!DOCTYPE html><html><head><title>Fetched title</title></head><body><article><p>${sentence.repeat(12)}</p><a href="https://example.com/next">Next</a><a href="mailto:person@example.com">Mail</a></article></body></html>`;
+    globalThis.fetch = mock.fn(async () => ({
+      url: 'https://example.com/article',
+      headers: { get: () => 'text/html; charset=utf-8' },
+      text: async () => html,
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async (message) => {
+      assert.equal(message.action, 'parse-html');
+      return {
+        title: 'Fetched title',
+        content: sentence.repeat(12),
+        links: ['https://example.com/next'],
+      };
+    });
+
+    const result = await scraper.scrape(task, 'https://example.com/article');
+
+    assert.equal(result, true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.equal(task.contentMap.get('https://example.com/article').title, 'Fetched title');
+    assert.match(
+      task.contentMap.get('https://example.com/article').textContent,
+      /Alpha beta gamma delta epsilon/
+    );
+    assert.ok(task.queue.includes('https://example.com/next'));
+    assert.equal(
+      task.queue.every((link) => link.startsWith('https://') || link.startsWith('http://')),
+      true
+    );
+    assert.equal(
+      task.queue.some((link) => link.startsWith('mailto:')),
+      false
+    );
+  });
+
+  test('opens a tab when the fetched body is twenty characters', async () => {
+    globalThis.fetch = mock.fn(async () => ({
+      url: 'https://example.com/short',
+      headers: { get: () => 'text/html' },
+      text: async () => '<html><body>12345678901234567890</body></html>',
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async (message) => ({
+      title: 'Short',
+      content: '12345678901234567890',
+      links: [],
+      action: message.action,
+    }));
+
+    const result = await scraper.scrape(task, 'https://example.com/short');
+
+    assert.equal(result, true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 1);
+  });
+
+  test('discards a fetch that redirects off the site', async () => {
+    globalThis.fetch = mock.fn(async () => ({
+      url: 'https://other.example/landed',
+      headers: { get: () => 'text/html' },
+      text: async () => '<html><body>not used</body></html>',
+    }));
+
+    const result = await scraper.scrape(task, 'https://example.com/start');
+
+    assert.equal(result, false);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.equal(task.contentMap.size, 0);
+  });
+
+  test('logs when Readability is not injected', async () => {
+    const statuses = [];
+    taskManager.sendStatus = (_id, data) => {
+      statuses.push(data);
+    };
+    chrome.scripting.executeScript.mock.mockImplementation((options) => {
+      if (options.files) {
+        return Promise.reject(new Error('injection failed'));
+      }
+      return Promise.resolve([
+        {
+          result: {
+            title: 'Tab title',
+            content: 'Tab body with enough text',
+            links: [],
+          },
+        },
+      ]);
+    });
+
+    const result = await scraper.scrape(task, 'https://example.com/page');
+
+    assert.equal(result, true);
+    assert.ok(statuses.some((status) => status.debug === 'Readability was not injected'));
   });
 });
 

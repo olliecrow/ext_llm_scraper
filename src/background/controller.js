@@ -2,12 +2,7 @@ import { TaskManager } from './taskManager.js';
 import { PageScraper } from './scraper.js';
 import { MarkdownBuilder } from './markdownBuilder.js';
 import { generateFilename } from '../shared/utils.js';
-
-const OFFSCREEN_OPTIONS = {
-  url: 'src/offscreen/offscreen.html',
-  reasons: ['BLOBS'],
-  justification: 'Create a local blob URL so the Markdown download is not limited by a data URL.',
-};
+import { ensureOffscreenDocument } from './offscreenDoc.js';
 
 let downloadChain = Promise.resolve();
 
@@ -92,17 +87,13 @@ export function installBackground(chromeApi, services = {}) {
       });
     }
 
+    await chromeApi.offscreen.closeDocument().catch(() => undefined);
     task.markAsFinished();
     taskManager.cleanupTask(task.taskId);
   }
 
   async function openOffscreen() {
-    try {
-      await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
-    } catch {
-      await chromeApi.offscreen.closeDocument();
-      await chromeApi.offscreen.createDocument(OFFSCREEN_OPTIONS);
-    }
+    await ensureOffscreenDocument(chromeApi);
   }
 
   async function performDownload(task, content) {
@@ -198,7 +189,11 @@ export function installBackground(chromeApi, services = {}) {
       return false;
     }
 
-    if (message.action === 'create-download-url' || message.action === 'revoke-download-url') {
+    if (
+      message.action === 'create-download-url' ||
+      message.action === 'revoke-download-url' ||
+      message.action === 'parse-html'
+    ) {
       return false;
     }
 

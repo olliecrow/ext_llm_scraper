@@ -1,3 +1,5 @@
+import { extractPageContent } from '../background/scraper.js';
+
 export function handleOffscreenMessage(message, sender, runtimeId, urlApi = URL) {
   if (!sender || sender.id !== runtimeId) {
     return { error: 'Rejected sender' };
@@ -17,6 +19,17 @@ export function handleOffscreenMessage(message, sender, runtimeId, urlApi = URL)
   if (message.action === 'revoke-download-url' && typeof message.url === 'string') {
     urlApi.revokeObjectURL(message.url);
     return { ok: true };
+  }
+
+  if (message.action === 'parse-html' && typeof message.html === 'string') {
+    const doc = new DOMParser().parseFromString(message.html, 'text/html');
+    const pageUrl = typeof message.url === 'string' ? message.url : '';
+    const parsed = extractPageContent(doc, pageUrl);
+    return {
+      title: parsed.title,
+      content: parsed.content,
+      links: parsed.links,
+    };
   }
 
   return null;
