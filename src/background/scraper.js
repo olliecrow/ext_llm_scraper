@@ -1,5 +1,5 @@
 import { CONFIG } from '../shared/config.js';
-import { delay, isValidUrl, hasExcludedExtension } from '../shared/utils.js';
+import { delay, isValidUrl, hasExcludedExtension, isSameSite } from '../shared/utils.js';
 
 export function extractPageContent() {
   const response = {
@@ -153,12 +153,7 @@ export class PageScraper {
         continue;
       }
 
-      try {
-        const linkUrl = new URL(link);
-        if (linkUrl.hostname !== task.startingDomain) {
-          continue;
-        }
-      } catch (_) {
+      if (!isSameSite(task.startingUrl, link)) {
         continue;
       }
 

@@ -2,6 +2,10 @@
  * Utility functions for the webpage scraper extension
  */
 
+import { CONFIG } from './config.js';
+
+const TRACKING_PARAM_SET = new Set(CONFIG.TRACKING_PARAMS.map((name) => name.toLowerCase()));
+
 /**
  * Checks if a hash fragment represents a SPA route rather than an anchor
  * @param {string} hash - The hash fragment to check (including #)
@@ -44,8 +48,20 @@ function isSPARoute(hash) {
   return false;
 }
 
+function compareText(left, right) {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 /**
- * Normalizes a URL by removing query parameters and optionally hash fragments
+ * Normalizes a URL for crawl identity.
+ * Tracking parameters are removed. Other query parameters stay, in sorted order.
+ * One trailing slash is removed from a non-root path.
  * @param {string} url - The URL to normalize
  * @param {Object} options - Normalization options
  * @param {boolean} options.preserveSPARoutes - Whether to preserve SPA hash routes (default: true)
@@ -57,9 +73,23 @@ export function normalizeUrl(url, options = {}) {
   try {
     const urlObj = new URL(url);
     const originalHash = urlObj.hash;
+    const kept = [];
 
-    // Always remove query parameters
+    for (const [key, value] of urlObj.searchParams.entries()) {
+      if (!TRACKING_PARAM_SET.has(key.toLowerCase())) {
+        kept.push([key, value]);
+      }
+    }
+
+    kept.sort((left, right) => compareText(left[0], right[0]) || compareText(left[1], right[1]));
     urlObj.search = '';
+    for (const [key, value] of kept) {
+      urlObj.searchParams.append(key, value);
+    }
+
+    if (urlObj.pathname.length > 1 && urlObj.pathname.endsWith('/')) {
+      urlObj.pathname = urlObj.pathname.slice(0, -1);
+    }
 
     // Handle hash fragments based on whether they're SPA routes
     if (preserveSPARoutes && isSPARoute(originalHash)) {
@@ -79,6 +109,68 @@ export function normalizeUrl(url, options = {}) {
   } catch (_) {
     return url;
   }
+}
+
+/**
+ * Returns true when two hostnames are equal, or one is the www form of the other.
+ * Other subdomains stay distinct.
+ * @param {string} left
+ * @param {string} right
+ * @returns {boolean}
+ */
+export function sameSiteHost(left, right) {
+  const a = String(left || '').toLowerCase();
+  const b = String(right || '').toLowerCase();
+  if (!a || !b) {
+    return false;
+  }
+  return a === b || a === `www.${b}` || b === `www.${a}`;
+}
+
+function explicitPort(urlObj) {
+  if (urlObj.port) {
+    return urlObj.port;
+  }
+  if (urlObj.protocol === 'https:') {
+    return '443';
+  }
+  if (urlObj.protocol === 'http:') {
+    return '80';
+  }
+  return '';
+}
+
+/**
+ * Same site means the www/apex host pair and a matching port.
+ * HTTP and HTTPS are both allowed. A non-default port must match exactly,
+ * so a crawl on port 443 does not follow port 8443, and a custom-port crawl
+ * does not follow ports 80 or 443.
+ * @param {string} leftUrl
+ * @param {string} rightUrl
+ * @returns {boolean}
+ */
+export function isSameSite(leftUrl, rightUrl) {
+  let left;
+  let right;
+  try {
+    left = new URL(leftUrl);
+    right = new URL(rightUrl);
+  } catch (_) {
+    return false;
+  }
+
+  if (!sameSiteHost(left.hostname, right.hostname)) {
+    return false;
+  }
+
+  const leftPort = explicitPort(left);
+  const rightPort = explicitPort(right);
+  if (leftPort === rightPort) {
+    return true;
+  }
+
+  const standard = new Set(['80', '443']);
+  return standard.has(leftPort) && standard.has(rightPort);
 }
 
 /**

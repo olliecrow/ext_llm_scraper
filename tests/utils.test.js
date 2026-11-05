@@ -5,6 +5,8 @@ import {
   extractDomain,
   hasExcludedExtension,
   generateFilename,
+  sameSiteHost,
+  isSameSite,
 } from '../src/shared/utils.js';
 
 describe('URL Normalization', () => {
@@ -13,14 +15,26 @@ describe('URL Normalization', () => {
     expect(normalizeUrl(url)).toBe('https://example.com/page');
   });
 
-  test('removes query parameters', () => {
-    const url = 'https://example.com/page?param=value&other=123';
-    expect(normalizeUrl(url)).toBe('https://example.com/page');
+  test('removes tracking parameters and keeps page parameters', () => {
+    expect(normalizeUrl('https://example.com/page?utm_source=x&id=1')).toBe(
+      'https://example.com/page?id=1'
+    );
+    expect(normalizeUrl('https://example.com/item?id=1')).not.toBe(
+      normalizeUrl('https://example.com/item?id=2')
+    );
+    expect(normalizeUrl('https://example.com/item?id=1&utm_source=x')).toBe(
+      'https://example.com/item?id=1'
+    );
+    expect(normalizeUrl('https://example.com/p?b=2&a=1')).toBe('https://example.com/p?a=1&b=2');
+    expect(normalizeUrl('https://example.com/p?FbClId=abc&id=9')).toBe(
+      'https://example.com/p?id=9'
+    );
   });
 
-  test('removes both hash and query parameters', () => {
-    const url = 'https://example.com/page?param=value#section';
-    expect(normalizeUrl(url)).toBe('https://example.com/page');
+  test('removes anchors and tracking parameters', () => {
+    expect(normalizeUrl('https://example.com/page?utm_campaign=a&id=1#section')).toBe(
+      'https://example.com/page?id=1'
+    );
   });
 
   test('preserves path structure', () => {
@@ -29,8 +43,10 @@ describe('URL Normalization', () => {
   });
 
   test('handles URLs with port numbers', () => {
-    const url = 'https://example.com:8080/page?test=1';
-    expect(normalizeUrl(url)).toBe('https://example.com:8080/page');
+    expect(normalizeUrl('https://example.com:8080/page?test=1')).toBe(
+      'https://example.com:8080/page?test=1'
+    );
+    expect(normalizeUrl('https://example.com:443/page')).toBe('https://example.com/page');
   });
 
   test('returns original URL if invalid', () => {
@@ -38,9 +54,31 @@ describe('URL Normalization', () => {
     expect(normalizeUrl(invalidUrl)).toBe(invalidUrl);
   });
 
-  test('handles URLs with trailing slash', () => {
-    const url = 'https://example.com/page/?query=test';
-    expect(normalizeUrl(url)).toBe('https://example.com/page/');
+  test('collapses one trailing slash and keeps the root', () => {
+    expect(normalizeUrl('https://example.com/docs/')).toBe('https://example.com/docs');
+    expect(normalizeUrl('https://example.com/page/?id=1')).toBe('https://example.com/page?id=1');
+    expect(normalizeUrl('https://example.com/')).toBe('https://example.com/');
+    expect(normalizeUrl('https://example.com')).toBe('https://example.com/');
+  });
+});
+
+describe('same site', () => {
+  test('matches a host with its www form only', () => {
+    expect(sameSiteHost('example.com', 'www.example.com')).toBe(true);
+    expect(sameSiteHost('WWW.Example.com', 'example.com')).toBe(true);
+    expect(sameSiteHost('example.com', 'example.com')).toBe(true);
+    expect(sameSiteHost('blog.example.com', 'example.com')).toBe(false);
+    expect(sameSiteHost('', 'example.com')).toBe(false);
+  });
+
+  test('allows http and https on the standard ports and rejects a different port', () => {
+    expect(isSameSite('https://example.com/a', 'http://www.example.com/b')).toBe(true);
+    expect(isSameSite('https://example.com/a', 'https://example.com:443/b')).toBe(true);
+    expect(isSameSite('https://example.com/a', 'https://example.com:8443/admin')).toBe(false);
+    expect(isSameSite('https://example.com:8443/start', 'https://example.com/home')).toBe(false);
+    expect(isSameSite('https://example.com:8443/start', 'http://example.com:8443/also')).toBe(true);
+    expect(isSameSite('https://example.com/a', 'https://other.example.com/')).toBe(false);
+    expect(isSameSite('not a url', 'https://example.com/')).toBe(false);
   });
 });
 

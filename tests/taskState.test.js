@@ -34,6 +34,20 @@ describe('TaskState', () => {
     expect(task.settings.crawlMode).toBe(true);
   });
 
+  test('keeps functional query strings distinct and collapses a trailing slash', () => {
+    const task = new TaskState(1, 'https://example.com/docs', { maxPages: 10 });
+
+    expect(task.addToQueue('https://example.com/docs/')).toBe(false);
+    expect(task.addToQueue('https://example.com/item?id=1')).toBe(true);
+    expect(task.addToQueue('https://example.com/item?id=2')).toBe(true);
+    expect(task.addToQueue('https://example.com/item?id=1&utm_source=x')).toBe(false);
+    expect(task.queue).toEqual([
+      'https://example.com/docs',
+      'https://example.com/item?id=1',
+      'https://example.com/item?id=2',
+    ]);
+  });
+
   test('tracks visited URLs and prevents duplicates', () => {
     const task = new TaskState(1, START_URL, {});
     const addedFirst = task.addToQueue('https://example.com/about');

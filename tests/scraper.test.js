@@ -72,6 +72,43 @@ describe('PageScraper', () => {
     expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
   });
 
+  test('queues the www pair and standard ports, and drops other hosts and ports', () => {
+    scraper.enqueueDiscoveredLinks(task, [
+      'https://www.example.com/about',
+      'https://other.example.com/',
+      'https://other.com/',
+      'https://example.com:8443/admin',
+      'https://example.com:443/explicit',
+      'https://example.com/explicit',
+      'http://example.com/plain',
+    ]);
+
+    expect(task.queue).toContain('https://www.example.com/about');
+    expect(task.queue).toContain('http://example.com/plain');
+    expect(task.queue.filter((url) => url === 'https://example.com/explicit')).toHaveLength(1);
+    expect(task.queue).not.toContain('https://other.example.com/');
+    expect(task.queue).not.toContain('https://other.com/');
+    expect(task.queue).not.toContain('https://example.com:8443/admin');
+
+    const wwwTask = new TaskState(2, 'https://www.example.com/', { maxPages: 5 });
+    scraper.enqueueDiscoveredLinks(wwwTask, [
+      'https://example.com/about',
+      'https://blog.example.com/no',
+    ]);
+    expect(wwwTask.queue).toContain('https://example.com/about');
+    expect(wwwTask.queue).not.toContain('https://blog.example.com/no');
+
+    const custom = new TaskState(3, 'https://example.com:8443/', { maxPages: 5 });
+    scraper.enqueueDiscoveredLinks(custom, [
+      'https://example.com/home',
+      'https://example.com:8443/admin',
+      'http://example.com:8443/also',
+    ]);
+    expect(custom.queue).toContain('https://example.com:8443/admin');
+    expect(custom.queue).toContain('http://example.com:8443/also');
+    expect(custom.queue).not.toContain('https://example.com/home');
+  });
+
   test('queues only valid same-domain links when crawl mode is enabled', () => {
     scraper.enqueueDiscoveredLinks(task, [
       'https://example.com/team',
