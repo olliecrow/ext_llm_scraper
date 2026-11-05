@@ -1,8 +1,12 @@
 import { TaskManager } from './taskManager.js';
 import { PageScraper } from './scraper.js';
 import { MarkdownBuilder } from './markdownBuilder.js';
-import { generateFilename } from '../shared/utils.js';
+import { generateFilename, splitText } from '../shared/utils.js';
 import { ensureOffscreenDocument, holdOffscreenDocument } from './offscreenDoc.js';
+
+// Chrome rejects a message above 64 MiB. A JSON-escaped character takes
+// at most 6 bytes, so 4 Mi characters per message stays below that.
+const DOWNLOAD_CHUNK_CHARS = 4 * 1024 * 1024;
 
 let downloadChain = Promise.resolve();
 
@@ -104,11 +108,22 @@ export function installBackground(chromeApi, services = {}) {
 
   async function performDownload(task, content) {
     const filename = generateFilename(task.startingDomain);
+    const id = crypto.randomUUID();
     try {
       await ensureOffscreenDocument(chromeApi);
+      for (const chunk of splitText(content, DOWNLOAD_CHUNK_CHARS)) {
+        const stored = await chromeApi.runtime.sendMessage({
+          action: 'append-download-chunk',
+          id,
+          chunk,
+        });
+        if (!stored?.ok) {
+          throw new Error(stored?.error || 'Download data was not stored');
+        }
+      }
       const response = await chromeApi.runtime.sendMessage({
         action: 'create-download-url',
-        content,
+        id,
         mime: 'text/markdown',
       });
       if (!response?.url || !String(response.url).startsWith('blob:')) {
@@ -128,6 +143,9 @@ export function installBackground(chromeApi, services = {}) {
       });
       return { ok: true, filename };
     } catch (error) {
+      await chromeApi.runtime
+        .sendMessage({ action: 'discard-download', id })
+        .catch(() => undefined);
       return { ok: false, error: error?.message || 'Download failed' };
     }
   }
@@ -189,6 +207,8 @@ export function installBackground(chromeApi, services = {}) {
     }
 
     if (
+      message.action === 'append-download-chunk' ||
+      message.action === 'discard-download' ||
       message.action === 'create-download-url' ||
       message.action === 'revoke-download-url' ||
       message.action === 'parse-html'

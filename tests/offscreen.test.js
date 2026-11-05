@@ -4,11 +4,13 @@ import { JSDOM } from 'jsdom';
 import { handleOffscreenMessage } from '../src/offscreen/offscreen.js';
 
 describe('offscreen downloads', () => {
-  test('creates a blob URL for this extension and rejects other senders', () => {
+  test('builds a blob from pieces for this extension and rejects other senders', async () => {
     const revoked = [];
+    const created = [];
     const urlApi = {
       createObjectURL: (blob) => {
         assert.ok(blob instanceof Blob);
+        created.push(blob);
         return 'blob:local/markdown';
       },
       revokeObjectURL: (url) => {
@@ -18,7 +20,7 @@ describe('offscreen downloads', () => {
 
     assert.deepEqual(
       handleOffscreenMessage(
-        { action: 'create-download-url', content: '# Hi', mime: 'text/markdown' },
+        { action: 'append-download-chunk', id: 'd1', chunk: '# Hi' },
         { id: 'other' },
         'ext-id',
         urlApi
@@ -26,15 +28,25 @@ describe('offscreen downloads', () => {
       { error: 'Rejected sender' }
     );
 
-    assert.deepEqual(
-      handleOffscreenMessage(
-        { action: 'create-download-url', content: '# Hi', mime: 'text/markdown' },
-        { id: 'ext-id' },
-        'ext-id',
-        urlApi
-      ),
-      { url: 'blob:local/markdown' }
-    );
+    const send = (message) => handleOffscreenMessage(message, { id: 'ext-id' }, 'ext-id', urlApi);
+    assert.deepEqual(send({ action: 'append-download-chunk', id: 'd1', chunk: '# Hi' }), {
+      ok: true,
+    });
+    assert.deepEqual(send({ action: 'append-download-chunk', id: 'd1', chunk: ' there' }), {
+      ok: true,
+    });
+    assert.deepEqual(send({ action: 'append-download-chunk', id: 'd1', chunk: 5 }), {
+      error: 'Invalid download chunk',
+    });
+    assert.deepEqual(send({ action: 'create-download-url', id: 'd1', mime: 'text/markdown' }), {
+      url: 'blob:local/markdown',
+    });
+    assert.equal(await created[0].text(), '# Hi there');
+
+    send({ action: 'append-download-chunk', id: 'd2', chunk: 'dropped' });
+    assert.deepEqual(send({ action: 'discard-download', id: 'd2' }), { ok: true });
+    send({ action: 'create-download-url', id: 'd2' });
+    assert.equal(await created[1].text(), '');
 
     assert.deepEqual(
       handleOffscreenMessage(

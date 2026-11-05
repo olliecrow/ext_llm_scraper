@@ -8,6 +8,8 @@ import {
   generateFilename,
   sameSiteHost,
   isSameSite,
+  splitText,
+  delay,
 } from '../src/shared/utils.js';
 
 describe('URL Normalization', () => {
@@ -189,5 +191,28 @@ describe('Filename Generation', () => {
     const filename = generateFilename(domain);
 
     assert.match(filename, /^blog\.example\.com_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.md$/);
+  });
+});
+
+describe('splitText', () => {
+  test('keeps every piece within the size and never splits a surrogate pair', () => {
+    const text = `ab😀cd😀`;
+    const pieces = splitText(text, 3);
+    assert.equal(pieces.join(''), text);
+    assert.deepEqual(pieces, ['ab', '😀c', 'd😀']);
+    assert.deepEqual(splitText('', 4), []);
+    assert.deepEqual(splitText('abcdef', 4), ['abcd', 'ef']);
+  });
+});
+
+describe('delay', () => {
+  test('ends early when the signal aborts', async () => {
+    const controller = new AbortController();
+    const started = Date.now();
+    const wait = delay(60000, controller.signal);
+    controller.abort();
+    await wait;
+    assert.ok(Date.now() - started < 1000);
+    await delay(60000, controller.signal);
   });
 });

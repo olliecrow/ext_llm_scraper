@@ -4,6 +4,7 @@ import { installBackground } from '../src/background/controller.js';
 import { TaskManager } from '../src/background/taskManager.js';
 import { createChromeMock } from './chrome-mock.js';
 import { ensureOffscreenDocument } from '../src/background/offscreenDoc.js';
+import { handleOffscreenMessage } from '../src/offscreen/offscreen.js';
 
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -44,17 +45,27 @@ function includesPartial(items, expected) {
 describe('background controller', () => {
   let downloads;
   let messages;
+  let blobs;
+
+  // Routes background messages to the real offscreen handler.
+  const urlApi = {
+    createObjectURL: (blob) => {
+      const url = `blob:chrome-extension://ext-test/${blobs.size}`;
+      blobs.set(url, blob);
+      return url;
+    },
+    revokeObjectURL: () => undefined,
+  };
+  const downloadedText = (index = 0) => blobs.get(downloads[index].url).text();
 
   beforeEach(() => {
     downloads = [];
     messages = [];
+    blobs = new Map();
     globalThis.chrome = createChromeMock();
     chrome.runtime.sendMessage.mock.mockImplementation(async (message) => {
       messages.push(message);
-      if (message?.action === 'create-download-url') {
-        return { url: 'blob:https://download/markdown' };
-      }
-      return { ok: true };
+      return handleOffscreenMessage(message, { id: chrome.runtime.id }, chrome.runtime.id, urlApi);
     });
     chrome.downloads.download.mock.mockImplementation((options) => {
       downloads.push(options);
@@ -115,9 +126,9 @@ describe('background controller', () => {
 
     assert.equal(downloads.length, 1);
     assert.equal(downloads[0].url.startsWith('blob:'), true);
-    const created = messages.find((message) => message.action === 'create-download-url');
-    assert.ok(created.content.includes('first body'));
-    assert.equal(created.content.includes('second body'), false);
+    const text = await downloadedText();
+    assert.ok(text.includes('first body'));
+    assert.equal(text.includes('second body'), false);
     assert.ok(chrome.offscreen.closeDocument.mock.callCount() >= 1);
   });
 
@@ -396,6 +407,84 @@ describe('background controller', () => {
       true
     );
     assert.deepEqual(dispatch(listener, start), { success: true });
+  });
+
+  test('sends a large file in pieces that fit in one message', async () => {
+    const body = `${'a'.repeat(9_000_000)}😀end`;
+    const taskManager = new TaskManager();
+    installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task, url) {
+          task.addContent(url, { title: 'Big', textContent: body });
+          return true;
+        },
+      },
+    });
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
+    dispatch(listener, {
+      action: 'start',
+      tabId: 30,
+      startingUrl: 'https://example.com/big',
+      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+    });
+
+    await waitFor(() => taskManager.getTask(30) === null);
+    const chunks = messages.filter((message) => message.action === 'append-download-chunk');
+    assert.equal(chunks.length, 3);
+    assert.equal(
+      chunks.every((message) => message.chunk.length <= 4 * 1024 * 1024),
+      true
+    );
+    assert.equal(downloads.length, 1);
+    const text = await downloadedText();
+    assert.ok(text.includes(body));
+  });
+
+  test('discards stored pieces when a piece is rejected', async () => {
+    chrome.runtime.sendMessage.mock.mockImplementation(async (message) => {
+      messages.push(message);
+      if (message.action === 'append-download-chunk') {
+        return { error: 'out of memory' };
+      }
+      return handleOffscreenMessage(message, { id: chrome.runtime.id }, chrome.runtime.id, urlApi);
+    });
+    const taskManager = new TaskManager();
+    const statuses = [];
+    taskManager.sendStatus = (_taskId, data) => {
+      statuses.push(data);
+    };
+    installBackground(chrome, {
+      taskManager,
+      scraper: {
+        async scrape(task, url) {
+          task.addContent(url, { title: 'T', textContent: 'body' });
+          return true;
+        },
+      },
+    });
+    const listener = lastCallArg(chrome.runtime.onMessage.addListener);
+    dispatch(listener, {
+      action: 'start',
+      tabId: 31,
+      startingUrl: 'https://example.com/reject',
+      settings: { maxPages: 1, concurrency: 1, crawlMode: false },
+    });
+
+    await waitFor(() => taskManager.getTask(31) === null);
+    assert.equal(
+      includesPartial(statuses, {
+        done: true,
+        status: 'Scraping finished, but the download failed',
+        debug: 'out of memory',
+      }),
+      true
+    );
+    assert.equal(downloads.length, 0);
+    assert.equal(
+      messages.some((message) => message.action === 'discard-download'),
+      true
+    );
   });
 
   test('registers listeners when the service worker loads', async () => {

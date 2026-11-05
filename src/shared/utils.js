@@ -239,6 +239,28 @@ export function delay(ms, signal) {
 }
 
 /**
+ * Splits text into pieces of at most size UTF-16 code units.
+ * A surrogate pair is never split, so each piece survives JSON messaging.
+ * @param {string} text
+ * @param {number} size
+ * @returns {string[]}
+ */
+export function splitText(text, size) {
+  const pieces = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + size, text.length);
+    const last = text.charCodeAt(end - 1);
+    if (end < text.length && last >= 0xd800 && last <= 0xdbff && end - 1 > start) {
+      end -= 1;
+    }
+    pieces.push(text.slice(start, end));
+    start = end;
+  }
+  return pieces;
+}
+
+/**
  * Generates a filename for the scraped content
  * @param {string} domain - The domain of the scraped site
  * @returns {string} - The generated filename
