@@ -429,6 +429,44 @@ describe('PageScraper', () => {
     assert.equal(task.contentMap.get('https://example.com/header-wins').textContent, text);
   });
 
+  test('cancels the body when the charset label is unknown', async () => {
+    let cancelled = 0;
+    const text = 'Plain ascii page. '.repeat(20);
+    const html = `<article>${text}</article>`;
+    const debug = [];
+    const sendStatus = taskManager.sendStatus.bind(taskManager);
+    taskManager.sendStatus = (id, data) => {
+      if (data.debug) {
+        debug.push(data.debug);
+      }
+      return sendStatus(id, data);
+    };
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html; charset=x-bogus-label' },
+      body: {
+        getReader() {
+          return {
+            read: async () => ({ done: false, value: new TextEncoder().encode(html) }),
+            cancel: async () => {
+              cancelled += 1;
+            },
+          };
+        },
+      },
+    }));
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [{ result: { url: 'https://example.com/bogus', title: 'Bogus', content: text, links: [] } }],
+    ]);
+
+    assert.equal(await scraper.scrape(task, 'https://example.com/bogus'), true);
+    assert.equal(cancelled, 1);
+    assert.equal(chrome.tabs.create.mock.callCount(), 1);
+    assert.equal(task.contentMap.get('https://example.com/bogus').textContent, text);
+    assert.ok(debug.some((line) => line.includes('x-bogus-label')));
+  });
+
   test('opens a tab when the fetched body is twenty characters', async () => {
     globalThis.fetch = mock.fn(async () => ({
       url: 'https://example.com/short',

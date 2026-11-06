@@ -454,9 +454,11 @@ async function readCappedText(response, limit, charset) {
     return String(text).slice(0, limit);
   }
 
-  const decoder = new TextDecoder(charset || 'utf-8');
   let text = '';
   try {
+    // Build the decoder here so an unknown label still reaches finally
+    // and cancels the locked body.
+    const decoder = new TextDecoder(charset || 'utf-8');
     while (text.length < limit) {
       const { done, value } = await reader.read();
       if (done) {
