@@ -317,6 +317,118 @@ describe('PageScraper', () => {
     });
   }
 
+  test('keeps a utf-8 meta page on the static path', async () => {
+    const cases = [
+      '<meta charset="utf-8">',
+      '<meta charset="utf8">',
+      '<meta charset="UTF-8">',
+      '<meta charset="unicode-1-1-utf-8">',
+      '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
+      '<meta http-equiv="content-type" content="text/html">',
+      '<meta name="description" content="charset=iso-8859-1">',
+    ];
+    for (const [index, meta] of cases.entries()) {
+      const text = `Café static ${index} `.repeat(12);
+      const pageUrl = `https://example.com/utf8-meta-${index}`;
+      const html = `<!doctype html><html><head>${meta}<title>Meta</title></head><body><article><p>${text}</p></article></body></html>`;
+      globalThis.fetch = mock.fn(async (url) => ({
+        url,
+        headers: { get: () => 'text/html' },
+        body: new Response(Buffer.from(html, 'utf8')).body,
+      }));
+      chrome.runtime.sendMessage.mock.mockImplementation(async ({ html: body }) => {
+        assert.match(body, /Café/);
+        return { url: pageUrl, title: 'Meta', content: text, links: [] };
+      });
+      scraper.nextStart = 0;
+      const tabsBefore = chrome.tabs.create.mock.callCount();
+
+      assert.equal(await scraper.scrape(task, pageUrl), true, meta);
+      assert.equal(chrome.tabs.create.mock.callCount(), tabsBefore, meta);
+      assert.equal(task.contentMap.get(pageUrl).textContent, text, meta);
+    }
+  });
+
+  test('opens a tab when a meta charset names another encoding', async () => {
+    const text = 'Euro mark '.repeat(20);
+    const html =
+      '<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">' +
+      `<article>${text}</article>`;
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html' },
+      body: new Response(Buffer.from(html, 'utf8')).body,
+    }));
+    queueExecuteScript(chrome, [
+      [{ result: null }],
+      [
+        {
+          result: {
+            url: 'https://example.com/equiv',
+            title: 'Equiv',
+            content: text,
+            links: [],
+          },
+        },
+      ],
+    ]);
+
+    assert.equal(await scraper.scrape(task, 'https://example.com/equiv'), true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 1);
+    assert.equal(task.contentMap.get('https://example.com/equiv').textContent, text);
+  });
+
+  test('opens a tab when the meta charset label is invalid', async () => {
+    const cases = ['<meta charset="x-not-a-charset">', '<meta charset="">', '<meta charset=>'];
+    const pages = cases.map((meta, index) => {
+      const text = `Plain static page ${index}. `.repeat(12);
+      return { meta, text, pageUrl: `https://example.com/bad-meta-${index}` };
+    });
+    queueExecuteScript(
+      chrome,
+      pages.flatMap(({ text, pageUrl }) => [
+        [{ result: null }],
+        [{ result: { url: pageUrl, title: 'Bad meta', content: text, links: [] } }],
+      ])
+    );
+    for (const { meta, text, pageUrl } of pages) {
+      const html = `<head>${meta}</head><article>${text}</article>`;
+      globalThis.fetch = mock.fn(async (url) => ({
+        url,
+        headers: { get: () => 'text/html' },
+        body: new Response(Buffer.from(html, 'utf8')).body,
+      }));
+      scraper.nextStart = 0;
+
+      assert.equal(await scraper.scrape(task, pageUrl), true, meta);
+      assert.equal(task.contentMap.get(pageUrl).textContent, text, meta);
+    }
+    assert.equal(chrome.tabs.create.mock.callCount(), pages.length);
+  });
+
+  test('keeps a header charset when the meta charset names a different encoding', async () => {
+    const text = 'Café '.repeat(40);
+    const html = `<meta charset="utf-8"><article>${text}</article>`;
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html; charset=iso-8859-1' },
+      body: new Response(Buffer.from(html, 'latin1')).body,
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async ({ html: body }) => {
+      assert.match(body, /Café/);
+      return {
+        url: 'https://example.com/header-wins',
+        title: 'Header',
+        content: text,
+        links: [],
+      };
+    });
+
+    assert.equal(await scraper.scrape(task, 'https://example.com/header-wins'), true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.equal(task.contentMap.get('https://example.com/header-wins').textContent, text);
+  });
+
   test('opens a tab when the fetched body is twenty characters', async () => {
     globalThis.fetch = mock.fn(async () => ({
       url: 'https://example.com/short',

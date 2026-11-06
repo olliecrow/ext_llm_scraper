@@ -341,9 +341,11 @@ export class PageScraper {
 
       const charset = /;\s*charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType)?.[1];
       html = await readCappedText(response, STATIC_TEXT_LIMIT, charset);
-      // Let Chrome apply HTML's encoding rules (including meta http-equiv)
-      // rather than parsing a potentially misdecoded document as UTF-8.
-      if (!charset && /<meta\b[^>]*\bcharset\s*=/i.test(html)) {
+      // No transport charset: the body was read as UTF-8. A meta charset
+      // stays on this path when its label is that same encoding. An invalid
+      // label, or a different one, needs Chrome's HTML encoding rules.
+      // A transport charset already won, so a disagreeing meta does not.
+      if (!charset && metaCharsetNeedsTab(html, new TextDecoder('utf-8').encoding)) {
         return null;
       }
     } catch (error) {
@@ -399,6 +401,49 @@ export class PageScraper {
     });
 
     return result?.result ?? null;
+  }
+}
+
+// First encoding declaration in document order. Null when the page
+// names none. A charset attribute wins over http-equiv on the same tag.
+function firstMetaCharsetLabel(html) {
+  for (const tag of html.matchAll(/<meta\b([^>]*)>/gi)) {
+    const attrs = metaAttributes(tag[1]);
+    if (attrs.has('charset')) {
+      return attrs.get('charset');
+    }
+    const equiv = (attrs.get('http-equiv') || '').trim().toLowerCase();
+    if (equiv === 'content-type') {
+      const found = /charset\s*=\s*["']?\s*([^\s;"']*)/i.exec(attrs.get('content') || '');
+      if (found) {
+        return found[1];
+      }
+    }
+  }
+  return null;
+}
+
+function metaAttributes(source) {
+  const attrs = new Map();
+  const re = /([^\s"'>=/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gi;
+  for (const found of source.matchAll(re)) {
+    const name = found[1].toLowerCase();
+    if (!attrs.has(name)) {
+      attrs.set(name, found[2] ?? found[3] ?? found[4] ?? '');
+    }
+  }
+  return attrs;
+}
+
+function metaCharsetNeedsTab(html, usedEncoding) {
+  const label = firstMetaCharsetLabel(html);
+  if (label === null) {
+    return false;
+  }
+  try {
+    return new TextDecoder(label).encoding !== usedEncoding;
+  } catch {
+    return true;
   }
 }
 
