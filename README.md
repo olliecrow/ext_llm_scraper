@@ -44,7 +44,11 @@ Available options.
 The generated Markdown includes.
 
 - a table of contents with captured URLs
-- one section per page with title, canonical URL, and extracted text
+- one section per page with title, final page URL, and extracted text
+
+Static fetches use the response charset. Pages with no Content-Type, or a meta charset without a response charset, use a tab so Chrome applies its encoding rules. Hash routes keep their query and wait 600 ms after load for rendering. Pages that render later can still save incomplete text.
+
+Download names use safe characters. A filename rejection retries the same captured file as `scraped-pages.md`.
 
 ## Testing and QA
 

@@ -567,6 +567,44 @@ describe('PageScraper', () => {
     assert.equal(task.contentMap.get('https://example.com/#/about').title, 'About route');
   });
 
+  test('stores the final URL after a same-site redirect', async () => {
+    globalThis.fetch = mock.fn(async () => ({
+      url: 'https://example.com/new',
+      headers: { get: () => 'text/html' },
+      text: async () => '<article>Final text</article>',
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async () => ({
+      title: 'Final',
+      content: 'Final text '.repeat(20),
+      links: [],
+    }));
+    assert.equal(await scraper.scrape(task, 'https://example.com/old'), true);
+    assert.equal(task.contentMap.has('https://example.com/new'), true);
+    assert.equal(task.contentMap.has('https://example.com/old'), false);
+  });
+
+  test('allows a hash route to render after the load event', async () => {
+    let text = 'Shell placeholder';
+    const timer = setTimeout(() => {
+      text = 'Rendered route';
+    }, 100);
+    try {
+      scraper.extractContent = async () => ({
+        url: 'https://example.com/#/async',
+        title: 'Async',
+        content: text,
+        links: [],
+      });
+      assert.equal(await scraper.scrape(task, 'https://example.com/#/async'), true);
+      assert.equal(
+        task.contentMap.get('https://example.com/#/async').textContent,
+        'Rendered route'
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
   test('logs when Readability is not injected', async () => {
     const statuses = [];
     taskManager.sendStatus = (_id, data) => {

@@ -91,17 +91,8 @@ export function normalizeUrl(url, options = {}) {
       urlObj.pathname = urlObj.pathname.slice(0, -1);
     }
 
-    // Handle hash fragments based on whether they're SPA routes
-    if (preserveSPARoutes && isSPARoute(originalHash)) {
-      // Keep SPA routes but normalize them
-      // Remove any query params within the hash
-      if (originalHash.includes('?')) {
-        const hashBase = originalHash.split('?')[0];
-        urlObj.hash = hashBase;
-      }
-      // Otherwise keep the hash as-is for SPA routing
-    } else {
-      // Remove regular anchor hashes
+    // Route queries are application state, so preserve the whole hash route.
+    if (!preserveSPARoutes || !isSPARoute(originalHash)) {
       urlObj.hash = '';
     }
 

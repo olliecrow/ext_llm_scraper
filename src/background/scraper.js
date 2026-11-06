@@ -156,6 +156,12 @@ export class PageScraper {
           return false;
         }
 
+        if (new URL(url).hash) {
+          await delay(600, task.signal);
+          if (task.abort) {
+            return false;
+          }
+        }
         await this.injectReadability(task, tab.id);
         content = await this.extractContent(tab.id);
         if (content && this.leftSite(task, url, content.url)) {
@@ -167,7 +173,7 @@ export class PageScraper {
         throw new Error('Content extraction returned empty result');
       }
 
-      task.addContent(url, {
+      task.addContent(content.url || url, {
         title: content.title,
         textContent: content.content,
       });
@@ -368,7 +374,7 @@ export class PageScraper {
       return null;
     }
     if (parsed.content.trim().length >= STATIC_TEXT_MINIMUM) {
-      return parsed;
+      return { ...parsed, url: response.url };
     }
     return null;
   }

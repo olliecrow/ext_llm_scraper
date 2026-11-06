@@ -173,7 +173,10 @@ describe('File Extension Filtering', () => {
 
 describe('SPA hash routes', () => {
   test('keeps hash routes but removes normal anchors', () => {
-    assert.equal(normalizeUrl('https://example.com/#/docs?tab=1'), 'https://example.com/#/docs');
+    assert.equal(
+      normalizeUrl('https://example.com/#/docs?tab=1'),
+      'https://example.com/#/docs?tab=1'
+    );
     assert.equal(normalizeUrl('https://example.com/page#section'), 'https://example.com/page');
   });
 });
