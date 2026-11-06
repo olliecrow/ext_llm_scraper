@@ -19,6 +19,16 @@ function queueExecuteScript(chromeApi, results) {
   });
 }
 
+function utf16be(text) {
+  const le = Buffer.from(text, 'utf16le');
+  const be = Buffer.alloc(le.length);
+  for (let index = 0; index < le.length; index += 2) {
+    be[index] = le[index + 1];
+    be[index + 1] = le[index];
+  }
+  return be;
+}
+
 function withDom(html, run) {
   const dom = new JSDOM(
     `<!doctype html><html><head><title>Original title</title></head><body>${html}</body></html>`,
@@ -427,6 +437,111 @@ describe('PageScraper', () => {
     assert.equal(await scraper.scrape(task, 'https://example.com/header-wins'), true);
     assert.equal(chrome.tabs.create.mock.callCount(), 0);
     assert.equal(task.contentMap.get('https://example.com/header-wins').textContent, text);
+  });
+
+  test('a utf-8 BOM overrides the header charset', async () => {
+    const text = 'Café '.repeat(30);
+    const html = `<article>${text}</article>`;
+    const encoded = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(html, 'utf8')]);
+    let seen = '';
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html; charset=iso-8859-1' },
+      body: new Response(encoded).body,
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async ({ html: body }) => {
+      seen = body;
+      return { url: 'https://example.com/bom', title: 'Bom', content: text, links: [] };
+    });
+
+    assert.equal(await scraper.scrape(task, 'https://example.com/bom'), true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.match(seen, /Café/);
+    assert.equal(seen.includes('Ã'), false);
+    assert.equal(seen.includes('\uFEFF'), false);
+  });
+
+  test('a utf-8 BOM overrides an unknown header charset', async () => {
+    const text = 'Café '.repeat(30);
+    const html = `<article>${text}</article>`;
+    const encoded = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(html, 'utf8')]);
+    let seen = '';
+    globalThis.fetch = mock.fn(async (url) => ({
+      url,
+      headers: { get: () => 'text/html; charset=x-bogus-label' },
+      body: new Response(encoded).body,
+    }));
+    chrome.runtime.sendMessage.mock.mockImplementation(async ({ html: body }) => {
+      seen = body;
+      return { url: 'https://example.com/bom-bogus', title: 'Bom', content: text, links: [] };
+    });
+
+    assert.equal(await scraper.scrape(task, 'https://example.com/bom-bogus'), true);
+    assert.equal(chrome.tabs.create.mock.callCount(), 0);
+    assert.match(seen, /Café/);
+  });
+
+  test('a byte-order mark split across chunks overrides the header charset', async () => {
+    const text = 'Café '.repeat(30);
+    const html = `<article>${text}</article>`;
+    const cases = [
+      {
+        name: 'utf-8',
+        chunks: [
+          new Uint8Array([0xef]),
+          new Uint8Array([0xbb, 0xbf]),
+          new Uint8Array(Buffer.from(html, 'utf8')),
+        ],
+      },
+      {
+        name: 'utf-16le',
+        chunks: [
+          new Uint8Array([0xff]),
+          new Uint8Array([0xfe]),
+          new Uint8Array(Buffer.from(html, 'utf16le')),
+        ],
+      },
+      {
+        name: 'utf-16be',
+        chunks: [new Uint8Array([0xfe]), new Uint8Array([0xff]), utf16be(html)],
+      },
+    ];
+    for (const [index, item] of cases.entries()) {
+      let cursor = 0;
+      let cancelled = 0;
+      let seen = '';
+      const pageUrl = `https://example.com/bom-split-${index}`;
+      globalThis.fetch = mock.fn(async (url) => ({
+        url,
+        headers: { get: () => 'text/html; charset=iso-8859-1' },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (cursor >= item.chunks.length) {
+                return { done: true, value: undefined };
+              }
+              const value = item.chunks[cursor];
+              cursor += 1;
+              return { done: false, value };
+            },
+            cancel: async () => {
+              cancelled += 1;
+            },
+          }),
+        },
+      }));
+      chrome.runtime.sendMessage.mock.mockImplementation(async ({ html: body }) => {
+        seen = body;
+        return { url: pageUrl, title: 'Bom', content: text, links: [] };
+      });
+      scraper.nextStart = 0;
+
+      assert.equal(await scraper.scrape(task, pageUrl), true, item.name);
+      assert.equal(chrome.tabs.create.mock.callCount(), 0, item.name);
+      assert.match(seen, /Café/, item.name);
+      assert.equal(seen.includes('\uFEFF'), false, item.name);
+      assert.equal(cancelled, 1, item.name);
+    }
   });
 
   test('cancels the body when the charset label is unknown', async () => {

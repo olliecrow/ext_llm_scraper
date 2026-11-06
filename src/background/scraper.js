@@ -340,12 +340,13 @@ export class PageScraper {
       }
 
       const charset = /;\s*charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType)?.[1];
-      html = await readCappedText(response, STATIC_TEXT_LIMIT, charset);
-      // No transport charset: the body was read as UTF-8. A meta charset
-      // stays on this path when its label is that same encoding. An invalid
+      const decoded = await readCappedText(response, STATIC_TEXT_LIMIT, charset);
+      html = decoded.text;
+      // No transport charset: compare the meta label with the encoding that
+      // actually read the body (UTF-8, or a byte-order mark). An invalid
       // label, or a different one, needs Chrome's HTML encoding rules.
       // A transport charset already won, so a disagreeing meta does not.
-      if (!charset && metaCharsetNeedsTab(html, new TextDecoder('utf-8').encoding)) {
+      if (!charset && metaCharsetNeedsTab(html, decoded.encoding)) {
         return null;
       }
     } catch (error) {
@@ -451,24 +452,88 @@ async function readCappedText(response, limit, charset) {
   const reader = response.body?.getReader?.();
   if (!reader) {
     const text = typeof response.text === 'function' ? await response.text() : '';
-    return String(text).slice(0, limit);
+    return { text: String(text).slice(0, limit), encoding: 'utf-8' };
   }
 
   let text = '';
+  let encoding = 'utf-8';
   try {
-    // Build the decoder here so an unknown label still reaches finally
-    // and cancels the locked body.
-    const decoder = new TextDecoder(charset || 'utf-8');
+    // A BOM outranks the header, as in a browser. The decoder is created
+    // inside this try so an unknown label still cancels the locked body.
+    let lead = new Uint8Array(0);
+    let decoder = null;
     while (text.length < limit) {
       const { done, value } = await reader.read();
       if (done) {
         break;
       }
-      text += decoder.decode(value, { stream: true });
+      const chunk = value ?? new Uint8Array(0);
+      if (!decoder) {
+        lead = concatBytes(lead, chunk);
+        if (leadNeedsMore(lead)) {
+          continue;
+        }
+        decoder = decoderForLead(lead, charset);
+        encoding = decoder.encoding;
+        text += decoder.decode(lead, { stream: true });
+        continue;
+      }
+      text += decoder.decode(chunk, { stream: true });
+    }
+    if (!decoder) {
+      decoder = decoderForLead(lead, charset);
+      encoding = decoder.encoding;
+      if (lead.length > 0) {
+        text += decoder.decode(lead, { stream: true });
+      }
     }
     text += decoder.decode();
   } finally {
     await reader.cancel().catch(() => undefined);
   }
-  return text.slice(0, limit);
+  return { text: text.slice(0, limit), encoding };
+}
+
+function decoderForLead(lead, charset) {
+  return new TextDecoder(bomEncoding(lead) || charset || 'utf-8');
+}
+
+function concatBytes(left, right) {
+  if (left.length === 0) {
+    return right;
+  }
+  const merged = new Uint8Array(left.length + right.length);
+  merged.set(left, 0);
+  merged.set(right, left.length);
+  return merged;
+}
+
+function bomEncoding(lead) {
+  if (lead.length >= 3 && lead[0] === 0xef && lead[1] === 0xbb && lead[2] === 0xbf) {
+    return 'utf-8';
+  }
+  if (lead.length >= 2 && lead[0] === 0xff && lead[1] === 0xfe) {
+    return 'utf-16le';
+  }
+  if (lead.length >= 2 && lead[0] === 0xfe && lead[1] === 0xff) {
+    return 'utf-16be';
+  }
+  return null;
+}
+
+// Wait until the leading bytes can prove or rule out a BOM.
+function leadNeedsMore(lead) {
+  if (lead.length === 0) {
+    return true;
+  }
+  if (lead.length >= 3) {
+    return false;
+  }
+  if (lead[0] === 0xef) {
+    return lead.length < 2 || lead[1] === 0xbb;
+  }
+  if (lead[0] === 0xff || lead[0] === 0xfe) {
+    return lead.length < 2;
+  }
+  return false;
 }
